@@ -14,21 +14,8 @@
 %% GNU General Public License for more details.
 %%
 %% You should have received a copy of the GNU General Public License
-%% along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
+%% along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
--module(meeqo).
-
--behavior(application).
-
--export([send/3, ]).
-
-start() ->
-
-send(Msg, Addr, now) ->
-    send(Msg, Addr, 0).
-
-send(Msg, Addr, Lag) ->
+new(Data, Option) ->
     
-
-

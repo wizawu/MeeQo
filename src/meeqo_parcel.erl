@@ -17,18 +17,12 @@
 %% along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
--module(meeqo).
+-module(meeqo_parcel).
 
--behavior(application).
+-export([new/1]).
 
--export([send/3, ]).
-
-start() ->
-
-send(Msg, Addr, now) ->
-    send(Msg, Addr, 0).
-
-send(Msg, Addr, Lag) ->
-    
-
+new(List) ->
+    Len = length(List),
+    ParcelHead = <<2#11111111:8, Len:24>>,
+    term_to_binary({ParcelHead, List}).
 
