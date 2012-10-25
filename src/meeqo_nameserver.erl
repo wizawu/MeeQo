@@ -29,8 +29,8 @@
 -record(state, {grp_table, reg_info}).
 
 -define(DEFAULT_PORT, 7179).
--define(GROUP_TABLE, meeqo_nameserver_grp_table).
--define(REG_INFO_TABLE, meeqo_nameserver_reg_info).
+-define(GRP_TABLE, meeqo_nameserver_grp_table).
+-define(REG_TABLE, meeqo_nameserver_reg_table).
 
 %%-----------------------------------------------------------------------------
 
@@ -55,8 +55,8 @@ resolve(GrpName) ->
 
 init([Port]) ->
     {ok, LSocket} = gen_tcp:listen(Port, []),
-    GrpTable = ets:new(?GROUP_TABLE, [bag, protected, named_table],
-    RegInfo = ets:new(?REG_INFO_TABLE, [set, protected, named_table],
+    GrpTable = ets:new(?GRP_TABLE, [bag, protected, named_table],
+    RegTable = ets:new(?REG_TABLE, [set, protected, named_table],
     {ok, 
     
 
@@ -77,5 +77,23 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%-----------------------------------------------------------------------------
+
+add({Member, GrpList}) ->
+    remove(Member),
+    ets:insert(?REG_TABLE, {Member, GrpList}),
+    Join = fun(Group) -> ets:insert(?GRP_TABLE, {Group, Member}) end,
+    lists:map(Join, GrpList).
+
+remove(Member) ->
+    GrpList = ets:lookup(?REG_TABLE, Member),
+    Quit = fun(Group) -> ets:delete_object(?GRP_TABLE, {Group, Member}) end,
+    lists:map(Quit, GrpList),
+    ets:delete(?REG_TABLE, Member).
+
+resolve(Group) ->
+    List = ets:lookup(?GRP_TABLE, Group),
+    [V || {K, V} <- List].
+
+
 
 
