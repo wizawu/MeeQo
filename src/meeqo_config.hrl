@@ -32,5 +32,24 @@
 -define(MEEQO_COURIER, []).
 -define(MEEQO_COURIER_PORT, 7178).
 
+%%-------------------------------------
+%% other
+%%-------------------------------------
+-define( ,2#1000000).
+-define( ,2#0100000).
+-define( ,2#0010000).
+-define( ,2#0001000).
+-define( ,2#0000100).
+-define( ,2#0000010).
+-define( ,2#0000001).
+
+-define(NOAD, 2#0000).
+-define(PID,  2#0001).
+-define(IPC,  2#0010).
+-define(IPV4, 2#0100).
+-define(IPV6, 2#0110).
+-define(GRP,  2#1111).
+
+
 -endif.
 
