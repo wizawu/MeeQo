@@ -19,17 +19,21 @@
 
 -module(meeqo_address).
 
--export([resolve/1]).
+-export([resolve/1, encode/1, decode/1]).
 
-resolve(Str) ->
-    case Str of
-        "tcp://" ++ IPnP -> Port = re:replace(IPnP, "\\S+:", "", [{return,list}]),
-                            IP = re:replace(IPnP, ":"++Port++"$", "", [{return,list}]),
-                            Bool = (IPnP == IP ++ ":" ++ Port),
-                            case Bool of
-                                true -> {tcp, IP, Port};
-                                false -> error
-                            end;
+-include("./meeqo_protocol.hrl").
+
+%%-----------------------------------------------------------------------------
+
+resolve(Addr) when is_list(Addr) ->
+    case Addr of
+        "tcp://" ++ HP -> Port = re:replace(HP, "\\S+:", "", [{return,list}]),
+                          Host = re:replace(HP, ":"++Port++"$", "", [{return,list}]),
+                          X = (HP == IP ++ ":" ++ Port),
+                          case X of
+                              true -> getaddr(Host, Port);
+                              false -> error
+                          end;
         "pid://" ++ Pid -> {pid, list_to_pid("<" ++ Pid ++ ">")};
         "ipc://" ++ RegName -> Pid = whereis(list_to_atom(RegName)),
                                if
@@ -42,6 +46,22 @@ resolve(Str) ->
         _ -> error
     end.
 
-encode(AddrTerm) ->
 
-decode(AddrBin) ->
+encode(Addr) when is_tuple(Addr) ->
+    case Addr of
+        {tcp, IP, Port} ->
+
+
+decode(Addr) when is_binary(Addr) ->
+
+
+%%-----------------------------------------------------------------------------
+
+getaddr(Host, Port) ->
+    case inet_parse:address(Host) of
+        {ok, IP} ->
+            {tcp, IP, Port};
+        _ ->
+            error
+    end.
+
