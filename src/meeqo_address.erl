@@ -29,7 +29,7 @@ resolve(Addr) when is_list(Addr) ->
     case Addr of
         "tcp://" ++ HP -> Port = re:replace(HP, "\\S+:", "", [{return,list}]),
                           Host = re:replace(HP, ":"++Port++"$", "", [{return,list}]),
-                          X = (HP == IP ++ ":" ++ Port),
+                          X = (HP == Host ++ ":" ++ Port),
                           case X of
                               true -> getaddr(Host, Port);
                               false -> error
@@ -44,21 +44,26 @@ resolve(Addr) when is_list(Addr) ->
                                end;
         "grp://" ++ GrpName -> {grp, list_to_atom(GrpName)};
         _ -> error
-    end.
+    end;
+
+resolve(_) -> error.
 
 
 encode({tcp, IP, Port}) ->
     case size(IP) of
-        4 -> <<?IPV4_HD, ipv4_to_int(IP):32, Port:16>>;
-        8 -> <<?IPV6_HD, ipv6_to_int(IP):128, Port:16>>;
+        4 -> I = ipv4_to_int(IP),
+             <<?AD_IPV4, I:32, Port:16>>;
+        8 -> I = ipv6_to_int(IP),
+             <<?AD_IPV6, I:128, Port:16>>;
         _ -> error
     end;
 
 encode({pid, Pid}) ->
     S = pid_to_list(Pid) -- "<>",
-    L = lists:map(list_to_integer, S),
+    R = re:split(S, "[.]", [{return, lsit}],
+    L = lists:map(fun erlang:list_to_integer/1, R),
     [A,B,C] = L,
-    <<?PID_HD, A:32, B:32, C:32>>;
+    <<?AD_PID, A:32, B:32, C:32>>;
 
 encode({grp, GrpName}) ->
     S = atom_to_list(GrpName),
@@ -95,6 +100,7 @@ getaddr(Host, Port) ->
             error
     end.
 
+
 ipv4_to_int(IP) ->
     {A,B,C,D} = IP,
     (A bsl 24) + (B bsl 16) + (C bsl 8) + D.
@@ -104,21 +110,23 @@ ipv6_to_int(IP) ->
     (A bsl 112) + (B bsl 96) + (C bsl 80) + (D bsl 64) +
     (E bsl 48) + (F bsl 32) + (G bsl 16) + H.
 
-decode(?IPV4_HD, Bin) ->
+
+decode(?AD_IPV4, Bin) ->
     <<A:8, B:8, C:8, D:8, P:16>> = Bin,
     {tcp, {A,B,C,D}, P};
 
-decode(?IPV6_HD, Bin) ->
+decode(?AD_IPV6, Bin) ->
     <<A:16, B:16, C:16, D:16, E:16, F:16, G:16, H:16, P:16>> = Bin,
     {tcp, {A,B,C,D,E,F,G,H}, P};
 
-decode(?PID_HD, Bin) ->
+decode(?AD_PID, Bin) ->
     <<A:32, B:32, C:32>> = Bin,
     S = "<" ++ integer_to_list(A) ++ "." ++ integer_to_list(B)
         ++ "." ++ integer_to_list(C) ++ ">",
     {pid, list_to_pid(S)};
 
-decode(H, Bin
+decode(Bytes, Bin) when Bytes < 2#11110000 ->
+    {grp, list_to_atom(binary_to_list(Bin))};
 
-
+decode(_, _) -> error.
 

@@ -18,11 +18,24 @@
 %%
 
 -ifndef(MEEQO_PROTOCOL).
--define(MEEQO_PROTOCOL).
+-define(MEEQO_PROTOCOL, defined).
 
--define(?PID_HD,  2#11110001).
--define(?IPV4_HD, 2#11110010).
--define(?IPV6_HD, 2#11110011).
+%%-------------------------------------
+%% message head
+%%-------------------------------------
+-define(MS_PACK,  2#10000000).
+-define(MS_ALLOC, 2#01000000).
+-define(MS_TRIV,  2#00100000).
+-define(MS_LONG,  2#00010000).
+-define(MS_SEGM,  2#00001000).
+-define(MS_DEST,  2#00000010).
+-define(MS_SRC,   2#00000001).
 
+%%-------------------------------------
+%% address head
+%%-------------------------------------
+-define(AD_PID,  2#11110001).
+-define(AD_IPV4, 2#11110010).
+-define(AD_IPV6, 2#11110011).
 
 -endif.
