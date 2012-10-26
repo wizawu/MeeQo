@@ -24,15 +24,14 @@
 resolve(Str) ->
     case Str of
         "tcp://" ++ IPnP -> Port = re:replace(IPnP, "\\S+:", "", [{return,list}]),
-                            IP = re:replace(IPnP, ":"++Port++"$", "", [{return, list}]),
-                            if 
-                                IPnP == IP ++ ":" ++ Port ->
-                                    {tcp, IP, Port};
-                                true ->
-                                    error
+                            IP = re:replace(IPnP, ":"++Port++"$", "", [{return,list}]),
+                            Bool = (IPnP == IP ++ ":" ++ Port),
+                            case Bool of
+                                true -> {tcp, IP, Port};
+                                false -> error
                             end;
-        "pid://" ++ Pid -> {pid, list_to_pid("<" ++ Pid ++ ">")}.
-        "ipc://" ++ RegName -> Pid = whereis(RegName),
+        "pid://" ++ Pid -> {pid, list_to_pid("<" ++ Pid ++ ">")};
+        "ipc://" ++ RegName -> Pid = whereis(list_to_atom(RegName)),
                                if
                                    Pid == undefined ->
                                        error;
