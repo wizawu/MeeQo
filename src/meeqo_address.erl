@@ -1,20 +1,20 @@
 %%
-%% Copyright (C) 2012 Hualiang Wu <wizawu@gmail.com>
+%%  Copyright (C) 2012 Hualiang Wu <wizawu@gmail.com>
 %%
-%% This file is part of MeeQo.
+%%  This file is part of MeeQo.
 %%
-%% MeeQo is free software: you can redistribute it and/or modify
-%% it under the terms of the GNU General Public License as published by
-%% the Free Software Foundation, either version 3 of the License, or
-%% (at your option) any later version.
+%%  MeeQo is free software: you can redistribute it and/or modify
+%%  it under the terms of the GNU General Public License as published by
+%%  the Free Software Foundation, either version 3 of the License, or
+%%  (at your option) any later version.
 %%
-%% MeeQo is distributed in the hope that it will be useful,
-%% but WITHOUT ANY WARRANTY; without even the implied warranty of
-%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-%% GNU General Public License for more details.
+%%  MeeQo is distributed in the hope that it will be useful,
+%%  but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%  GNU General Public License for more details.
 %%
-%% You should have received a copy of the GNU General Public License
-%% along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
+%%  You should have received a copy of the GNU General Public License
+%%  along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
 -module(meeqo_address).
@@ -23,9 +23,22 @@
 
 resolve(Str) ->
     case Str of
-        "tcp://" ++ Address -> {tcp, Address};
-        "ipc://" ++ RegName -> {ipc, whereis(list_to_atom(RegName))};
+        "tcp://" ++ IPnP -> Port = re:replace(IPnP, "\\S+:", "", [{return,list}]),
+                            IP = re:replace(IPnP, ":"++Port++"$", "", [{return, list}]),
+                            if 
+                                IPnP == IP ++ ":" ++ Port ->
+                                    {tcp, IP, Port};
+                                true ->
+                                    error
+                            end;
+        "pid://" ++ Pid -> {pid, list_to_pid("<" ++ Pid ++ ">")}.
+        "ipc://" ++ RegName -> Pid = whereis(RegName),
+                               if
+                                   Pid == undefined ->
+                                       error;
+                                   true ->
+                                       {pid, Pid}
+                               end;
         "grp://" ++ GrpName -> {grp, list_to_atom(GrpName)};
-        _ when is_pid(Str)  -> {ipc, Str};
         _ -> error
     end.
