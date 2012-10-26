@@ -16,3 +16,13 @@
 %%  You should have received a copy of the GNU General Public License
 %%  along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
 %%
+
+-ifndef(MEEQO_PROTOCOL).
+-define(MEEQO_PROTOCOL).
+
+-define(?PID_HD,  2#11110001).
+-define(?IPV4_HD, 2#11110010).
+-define(?IPV6_HD, 2#11110011).
+
+
+-endif.

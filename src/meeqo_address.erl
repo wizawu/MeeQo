@@ -47,13 +47,43 @@ resolve(Addr) when is_list(Addr) ->
     end.
 
 
-encode(Addr) when is_tuple(Addr) ->
-    case Addr of
-        {tcp, IP, Port} ->
+encode({tcp, IP, Port}) ->
+    case size(IP) of
+        4 -> <<?IPV4_HD, ipv4_to_int(IP):32, Port:16>>;
+        8 -> <<?IPV6_HD, ipv6_to_int(IP):128, Port:16>>;
+        _ -> error
+    end;
+
+encode({pid, Pid}) ->
+    S = pid_to_list(Pid) -- "<>",
+    L = lists:map(list_to_integer, S),
+    [A,B,C] = L,
+    <<?PID_HD, A:32, B:32, C:32>>;
+
+encode({grp, GrpName}) ->
+    S = atom_to_list(GrpName),
+    Len = length(S),
+    if 
+        Len < 2#11110000 ->
+            list_to_binary([Len|S]);
+        true ->
+            error
+    end;
+
+encode(_) -> error.
 
 
-decode(Addr) when is_binary(Addr) ->
+decode(Bin) when is_binary(Bin) ->
+    L = bit_size(Bin) - 8,
+    if
+        L > 0 ->
+            <<H:8, T:L>> = Bin,
+            decode(H, <<T:L>>);
+        true ->
+            error
+    end;
 
+decode(_) -> error.
 
 %%-----------------------------------------------------------------------------
 
@@ -64,4 +94,31 @@ getaddr(Host, Port) ->
         _ ->
             error
     end.
+
+ipv4_to_int(IP) ->
+    {A,B,C,D} = IP,
+    (A bsl 24) + (B bsl 16) + (C bsl 8) + D.
+
+ipv6_to_int(IP) ->
+    {A,B,C,D,E,F,G,H} = IP,
+    (A bsl 112) + (B bsl 96) + (C bsl 80) + (D bsl 64) +
+    (E bsl 48) + (F bsl 32) + (G bsl 16) + H.
+
+decode(?IPV4_HD, Bin) ->
+    <<A:8, B:8, C:8, D:8, P:16>> = Bin,
+    {tcp, {A,B,C,D}, P};
+
+decode(?IPV6_HD, Bin) ->
+    <<A:16, B:16, C:16, D:16, E:16, F:16, G:16, H:16, P:16>> = Bin,
+    {tcp, {A,B,C,D,E,F,G,H}, P};
+
+decode(?PID_HD, Bin) ->
+    <<A:32, B:32, C:32>> = Bin,
+    S = "<" ++ integer_to_list(A) ++ "." ++ integer_to_list(B)
+        ++ "." ++ integer_to_list(C) ++ ">",
+    {pid, list_to_pid(S)};
+
+decode(H, Bin
+
+
 
