@@ -21,24 +21,22 @@
 
 -behavior(gen_server).
 
--export([start_link/0, start_link/1, register/2, unregister/1]).
+-export([start_link/0, register/2, unregister/1]).
 
 -export([init/1, handle_call/3,  handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -record(state, {grp_table, reg_info}).
 
--define(DEFAULT_PORT, 7179).
+-include("./meeqo_config.hrl").
+
 -define(GRP_TABLE, meeqo_nameserver_grp_table).
 -define(REG_TABLE, meeqo_nameserver_reg_table).
 
 %%-----------------------------------------------------------------------------
 
 start_link() ->
-    start_link(?DEFAULT_PORT).
-
-start_link(Port) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 register(Address, []) -> ok.
 
