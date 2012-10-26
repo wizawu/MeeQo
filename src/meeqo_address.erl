@@ -41,3 +41,7 @@ resolve(Str) ->
         "grp://" ++ GrpName -> {grp, list_to_atom(GrpName)};
         _ -> error
     end.
+
+encode(AddrTerm) ->
+
+decode(AddrBin) ->
