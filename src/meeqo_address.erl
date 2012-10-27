@@ -24,14 +24,15 @@
 -include("./meeqo_protocol.hrl").
 
 %%-----------------------------------------------------------------------------
-
+%%  API
+%%-----------------------------------------------------------------------------
 resolve(Addr) when is_list(Addr) ->
     case Addr of
         "tcp://" ++ HP -> Port = re:replace(HP, "\\S+:", "", [{return,list}]),
                           Host = re:replace(HP, ":"++Port++"$", "", [{return,list}]),
                           X = (HP == Host ++ ":" ++ Port),
                           case X of
-                              true -> getaddr(Host, Port);
+                              true -> getaddr(Host, list_to_integer(Port));
                               false -> error
                           end;
         "pid://" ++ Pid -> {pid, list_to_pid("<" ++ Pid ++ ">")};
@@ -48,19 +49,20 @@ resolve(Addr) when is_list(Addr) ->
 
 resolve(_) -> error.
 
-
+%%-----------------------------------------------------------------------------
 encode({tcp, IP, Port}) ->
     case size(IP) of
-        4 -> I = ipv4_to_int(IP),
-             <<?AD_IPV4, I:32, Port:16>>;
-        8 -> I = ipv6_to_int(IP),
-             <<?AD_IPV6, I:128, Port:16>>;
+        4 -> {A,B,C,D} = IP,
+             <<?AD_IPV4, A:8, B:8, C:8, D:8, Port:16>>;
+        8 -> L = 16,
+             {A,B,C,D,E,F,G,H} = IP,
+             <<?AD_IPV6, A:L, B:L, C:L, D:L, E:L, F:L, G:L, H:L, Port:16>>;
         _ -> error
     end;
 
 encode({pid, Pid}) ->
     S = pid_to_list(Pid) -- "<>",
-    R = re:split(S, "[.]", [{return, lsit}],
+    R = re:split(S, "[.]", [{return, list}]),
     L = lists:map(fun erlang:list_to_integer/1, R),
     [A,B,C] = L,
     <<?AD_PID, A:32, B:32, C:32>>;
@@ -77,7 +79,7 @@ encode({grp, GrpName}) ->
 
 encode(_) -> error.
 
-
+%%-----------------------------------------------------------------------------
 decode(Bin) when is_binary(Bin) ->
     L = bit_size(Bin) - 8,
     if
@@ -91,7 +93,8 @@ decode(Bin) when is_binary(Bin) ->
 decode(_) -> error.
 
 %%-----------------------------------------------------------------------------
-
+%%  internal functions
+%%-----------------------------------------------------------------------------
 getaddr(Host, Port) ->
     case inet_parse:address(Host) of
         {ok, IP} ->
@@ -100,17 +103,7 @@ getaddr(Host, Port) ->
             error
     end.
 
-
-ipv4_to_int(IP) ->
-    {A,B,C,D} = IP,
-    (A bsl 24) + (B bsl 16) + (C bsl 8) + D.
-
-ipv6_to_int(IP) ->
-    {A,B,C,D,E,F,G,H} = IP,
-    (A bsl 112) + (B bsl 96) + (C bsl 80) + (D bsl 64) +
-    (E bsl 48) + (F bsl 32) + (G bsl 16) + H.
-
-
+%%-----------------------------------------------------------------------------
 decode(?AD_IPV4, Bin) ->
     <<A:8, B:8, C:8, D:8, P:16>> = Bin,
     {tcp, {A,B,C,D}, P};
@@ -125,7 +118,7 @@ decode(?AD_PID, Bin) ->
         ++ "." ++ integer_to_list(C) ++ ">",
     {pid, list_to_pid(S)};
 
-decode(Bytes, Bin) when Bytes < 2#11110000 ->
+decode(AddrHead, Bin) when AddrHead < 2#11110000 ->
     {grp, list_to_atom(binary_to_list(Bin))};
 
 decode(_, _) -> error.
