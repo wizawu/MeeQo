@@ -26,7 +26,7 @@
 -export([init/1, handle_call/3,  handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {grp_table, reg_table, timestamp}).
+-record(state, {lsock}).
 
 -include("./meeqo_config.hrl").
 
@@ -50,19 +50,15 @@ start_link() ->
 %%-----------------------------------------------------------------------------
 %%  callback
 %%-----------------------------------------------------------------------------
-init([Port]) ->
-    {ok, LSocket} = gen_tcp:listen(Port, []),
-    GrpTable = ets:new(?GRP_TABLE, [bag, protected, named_table],
-    RegTable = ets:new(?REG_TABLE, [set, protected, named_table],
-    {ok, 
+init([]) ->
+    {ok, LSock} = gen_tcp:listen(Port, []),
+    State#state{lsock = LSock}.
     
+handle_call(_Request, _From, State) ->
+    {noreply, State}.
 
-handle_call(resolve, _From, State) ->
-    {reply, {ok, 
-
-handle_cast(register, _From) ->
-
-handle_cast(unregister, _From) ->
+handle_cast(_Request, State) ->
+    {noreply, State}.
 
 handle_info({tcp, Socket, BinData}, State) ->
 

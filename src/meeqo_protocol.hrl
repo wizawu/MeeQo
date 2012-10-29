@@ -21,7 +21,7 @@
 -define(MEEQO_PROTOCOL, defined).
 
 %%-------------------------------------
-%% message head
+%%  message head
 %%-------------------------------------
 -define(MS_PACK,  2#10000000).
 -define(MS_ALLOC, 2#01000000).
@@ -32,10 +32,11 @@
 -define(MS_SRC,   2#00000001).
 
 %%-------------------------------------
-%% address head
+%%  address head
 %%-------------------------------------
 -define(AD_PID,  2#11110001).
 -define(AD_IPV4, 2#11110010).
 -define(AD_IPV6, 2#11110011).
 
 -endif.
+
