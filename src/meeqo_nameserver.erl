@@ -21,12 +21,12 @@
 
 -behavior(gen_server).
 
--export([start_link/0, register/2, unregister/1]).
+-export([start_link/0]).
 
 -export([init/1, handle_call/3,  handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {grp_table, reg_info}).
+-record(state, {grp_table, reg_table, timestamp}).
 
 -include("./meeqo_config.hrl").
 
@@ -37,18 +37,15 @@
 %%  API
 %%-----------------------------------------------------------------------------
 start_link() ->
+    if
+        lists:member(?GRP_TABLE, ets:all()) -> ok;
+        true -> ets:new(?GRP_TABLE, [bag, protected, named_table]
+    end,
+    if
+        lists:member(?REG_TABLE, ets:all()) -> ok;
+        true -> ets:new(?REG_TABLE, [set, protected, named_table]
+    end,
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-register(Address, []) -> ok.
-
-register(Address, Groups) ->
-    [H|T] = Groups,
-    add(Address, H),
-    register(Address, T).
-
-unregister(Address) ->
-
-resolve(GrpName) ->
 
 %%-----------------------------------------------------------------------------
 %%  callback
