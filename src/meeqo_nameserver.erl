@@ -37,13 +37,13 @@
 %%  API
 %%-----------------------------------------------------------------------------
 start_link() ->
-    if
-        lists:member(?GRP_TABLE, ets:all()) -> ok;
-        true -> ets:new(?GRP_TABLE, [bag, protected, named_table]
+    case lists:member(?GRP_TABLE, ets:all()) of
+        false -> ets:new(?GRP_TABLE, [bag, protected, named_table]);
+        true -> ok
     end,
-    if
-        lists:member(?REG_TABLE, ets:all()) -> ok;
-        true -> ets:new(?REG_TABLE, [set, protected, named_table]
+    case lists:member(?REG_TABLE, ets:all()) of
+        false -> ets:new(?REG_TABLE, [set, protected, named_table]);
+        true -> ok
     end,
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -51,8 +51,9 @@ start_link() ->
 %%  callback
 %%-----------------------------------------------------------------------------
 init([]) ->
-    {ok, LSock} = gen_tcp:listen(Port, []),
-    State#state{lsock = LSock}.
+    Option = [binary, {active, true}, {package, 0}],
+    {ok, LSock} = gen_tcp:listen(?MEEQO_NAMESERVER_PORT, Option),
+    #state{lsock = LSock}.
     
 handle_call(_Request, _From, State) ->
     {noreply, State}.
@@ -60,8 +61,25 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_info({tcp, Socket, BinData}, State) ->
+handle_info({tcp, Sock, Bin}, State) ->
+    {ok, Client} = inet:peername(Sock), % Client -> {Address, Port}
+    T = binary_to_term(Bin),
+    case T of
+        {886} -> remove(Client);
+        {GrpName} when is_atom(GrpName) -> resolve(GrpName, Sock);
+        {GrpList} when is_list(GrpList) -> add(Client, GrpList);
+        _ -> error
+    end,
+    {noreply, State};
 
+handle_info({Pid, Msg}, State) when is_pid(Pid) ->
+    case Msg of
+        {886} -> remove(Pid);
+        {GrpName} when is_atom(GrpName) -> resolve(GrpName, Pid);
+        {GrpList} when is_list(GrpList) -> add(Pid, GrpList);
+        _ -> error
+    end,
+    {noreply, State}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -72,22 +90,26 @@ code_change(_OldVsn, State, _Extra) ->
 %%-----------------------------------------------------------------------------
 %%  internal function
 %%-----------------------------------------------------------------------------
-add({Member, GrpList}) ->
-    remove(Member),
-    ets:insert(?REG_TABLE, {Member, GrpList}),
-    Join = fun(Group) -> ets:insert(?GRP_TABLE, {Group, Member}) end,
+
+add(Client, GrpList) ->
+    remove(Client),
+    ets:insert(?REG_TABLE, {Client, GrpList}),
+    Join = fun(Group) -> ets:insert(?GRP_TABLE, {Group, Client}) end,
     lists:map(Join, GrpList).
 
-remove(Member) ->
-    GrpList = ets:lookup(?REG_TABLE, Member),
-    Quit = fun(Group) -> ets:delete_object(?GRP_TABLE, {Group, Member}) end,
+remove(Client) ->
+    GrpList = ets:lookup(?REG_TABLE, Client),
+    Quit = fun(Group) -> ets:delete_object(?GRP_TABLE, {Group, Client}) end,
     lists:map(Quit, GrpList),
-    ets:delete(?REG_TABLE, Member).
+    ets:delete(?REG_TABLE, Client).
 
-resolve(Group) ->
-    List = ets:lookup(?GRP_TABLE, Group),
-    [V || {K, V} <- List].
-
-
-
+resolve(GrpName, Pid) when is_pid(Pid) ->
+    List = ets:lookup(?GRP_TABLE, GrpName),
+    Reply = [V || {_K, V} <- List],
+    Pid ! Reply;
+        
+resolve(GrpName, Sock) ->
+    List = ets:lookup(?GRP_TABLE, GrpName),
+    Reply = term_to_binary({[V || {_K, V} <- List]}),
+    gen_tcp:send(Sock, Reply).
 
