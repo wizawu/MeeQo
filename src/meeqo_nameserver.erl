@@ -37,6 +37,12 @@
 %%  API
 %%-----------------------------------------------------------------------------
 start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+%%-----------------------------------------------------------------------------
+%%  callback
+%%-----------------------------------------------------------------------------
+init([]) ->
     case lists:member(?GRP_TABLE, ets:all()) of
         false -> ets:new(?GRP_TABLE, [bag, protected, named_table]);
         true -> ok
@@ -45,15 +51,9 @@ start_link() ->
         false -> ets:new(?REG_TABLE, [set, protected, named_table]);
         true -> ok
     end,
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-%%-----------------------------------------------------------------------------
-%%  callback
-%%-----------------------------------------------------------------------------
-init([]) ->
-    Option = [binary, {active, true}, {package, 0}],
-    {ok, LSock} = gen_tcp:listen(?MEEQO_NAMESERVER_PORT, Option),
-    #state{lsock = LSock}.
+    Options = [binary, {active, true}, {packet, 4}],
+    {ok, LSock} = gen_tcp:listen(?MEEQO_NAMESERVER_PORT, Options),
+    {ok, #state{lsock = LSock}}.
     
 handle_call(_Request, _From, State) ->
     {noreply, State}.
@@ -62,6 +62,7 @@ handle_cast(_Request, State) ->
     {noreply, State}.
 
 handle_info({tcp, Sock, Bin}, State) ->
+    ets:new(test,[named_table]),
     {ok, Client} = inet:peername(Sock), % Client -> {Address, Port}
     T = binary_to_term(Bin),
     case T of
@@ -70,6 +71,10 @@ handle_info({tcp, Sock, Bin}, State) ->
         {GrpList} when is_list(GrpList) -> add(Client, GrpList);
         _ -> error
     end,
+    {noreply, State};
+
+handle_info(timeout, #state{lsock = LSock} = State) ->
+    {ok, _Sock} = gen_tcp:accept(LSock),
     {noreply, State};
 
 handle_info({Pid, Msg}, State) when is_pid(Pid) ->
@@ -98,7 +103,10 @@ add(Client, GrpList) ->
     lists:map(Join, GrpList).
 
 remove(Client) ->
-    GrpList = ets:lookup(?REG_TABLE, Client),
+    case ets:lookup(?REG_TABLE, Client) of
+        [{Client, GrpList}] -> ets:lookup(?REG_TABLE, Client);
+        _ -> GrpList = []
+    end,
     Quit = fun(Group) -> ets:delete_object(?GRP_TABLE, {Group, Client}) end,
     lists:map(Quit, GrpList),
     ets:delete(?REG_TABLE, Client).
