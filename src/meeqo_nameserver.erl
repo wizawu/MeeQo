@@ -19,82 +19,66 @@
 
 -module(meeqo_nameserver).
 
--behavior(gen_server).
-
 -export([start_link/0]).
-
--export([init/1, handle_call/3,  handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
-
--record(state, {lsock}).
 
 -include("./meeqo_config.hrl").
 
 -define(GRP_TABLE, meeqo_nameserver_grp_table).
 -define(REG_TABLE, meeqo_nameserver_reg_table).
 
-%%-----------------------------------------------------------------------------
-%%  API
-%%-----------------------------------------------------------------------------
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+-define(TCP_OPTION, [binary, {active,false}, {packet,0}, {reuseaddr,true}]).
 
-%%-----------------------------------------------------------------------------
-%%  callback
-%%-----------------------------------------------------------------------------
-init([]) ->
+start_link() ->
     case lists:member(?GRP_TABLE, ets:all()) of
-        false -> ets:new(?GRP_TABLE, [bag, protected, named_table]);
+        false -> ets:new(?GRP_TABLE, [bag, public, named_table]);
         true -> ok
     end,
     case lists:member(?REG_TABLE, ets:all()) of
-        false -> ets:new(?REG_TABLE, [set, protected, named_table]);
+        false -> ets:new(?REG_TABLE, [set, public, named_table]);
         true -> ok
     end,
-    Options = [binary, {active, true}, {packet, 4}],
-    {ok, LSock} = gen_tcp:listen(?MEEQO_NAMESERVER_PORT, Options),
-    {ok, #state{lsock = LSock}}.
-    
-handle_call(_Request, _From, State) ->
-    {noreply, State}.
+    case gen_tcp:listen(?MEEQO_NAMESERVER_PORT, ?TCP_OPTION) of
+        {ok, LSock} -> 
+            spawn(fun() -> accept(LSock) end),
+            Pid = spawn(fun() -> loop() end),
+            true = register(?MODULE, Pid);
+        {error, Reason} -> {error, Reason}
+    end.
+        
+% handle pid request
+loop() ->
+    receive
+        {Pid, Msg} when is_pid(Pid) ->
+            spawn(fun() -> read({Pid, Msg}) end),
+            loop();
+        _ -> loop()
+    end.
 
-handle_cast(_Request, State) ->
-    {noreply, State}.
+read({Pid, Msg})->
+    case Msg of
+        {886} -> remove(Pid);
+        {GrpName} when is_atom(GrpName) -> resolve(GrpName, Pid);
+        {GrpList} when is_list(GrpList) -> add(Pid, GrpList);
+        _ -> error
+    end.
 
-handle_info({tcp, Sock, Bin}, State) ->
-    ets:new(test,[named_table]),
-    {ok, Client} = inet:peername(Sock), % Client -> {Address, Port}
+% handle tcp request
+accept(LSock) ->
+    {ok, Sock} = gen_tcp:accept(LSock),
+    spawn(fun() -> accept(LSock) end),
+    recv(Sock).
+
+recv(Sock) ->
+    {ok, Client} = inet:peername(Sock),  % Client -> {Address, Port}
+    {ok, Bin} = gen_tcp:recv(Sock, 0),
     T = binary_to_term(Bin),
     case T of
         {886} -> remove(Client);
         {GrpName} when is_atom(GrpName) -> resolve(GrpName, Sock);
         {GrpList} when is_list(GrpList) -> add(Client, GrpList);
         _ -> error
-    end,
-    {noreply, State};
+    end.
 
-handle_info(timeout, #state{lsock = LSock} = State) ->
-    {ok, _Sock} = gen_tcp:accept(LSock),
-    {noreply, State};
-
-handle_info({Pid, Msg}, State) when is_pid(Pid) ->
-    case Msg of
-        {886} -> remove(Pid);
-        {GrpName} when is_atom(GrpName) -> resolve(GrpName, Pid);
-        {GrpList} when is_list(GrpList) -> add(Pid, GrpList);
-        _ -> error
-    end,
-    {noreply, State}.
-
-terminate(_Reason, _State) ->
-    ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
-%%-----------------------------------------------------------------------------
-%%  internal function
-%%-----------------------------------------------------------------------------
 
 add(Client, GrpList) ->
     remove(Client),
