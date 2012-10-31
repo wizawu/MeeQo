@@ -29,28 +29,36 @@
 -define(TCP_OPTION, [binary, {active,false}, {packet,0}, {reuseaddr,true}]).
 
 start_link() ->
-    case lists:member(?GRP_TABLE, ets:all()) of
-        false -> ets:new(?GRP_TABLE, [bag, public, named_table]);
-        true -> ok
-    end,
-    case lists:member(?REG_TABLE, ets:all()) of
-        false -> ets:new(?REG_TABLE, [set, public, named_table]);
-        true -> ok
-    end,
     case gen_tcp:listen(?MEEQO_NAMESERVER_PORT, ?TCP_OPTION) of
         {ok, LSock} -> 
             spawn(fun() -> accept(LSock) end),
             Pid = spawn(fun() -> loop() end),
+            Pid ! {new, tables},
             true = register(?MODULE, Pid);
         {error, Reason} -> {error, Reason}
     end.
         
-% handle pid request
+% handle both pid and tcp requests here to guarantee correct logic 
 loop() ->
     receive
-        {Pid, Msg} when is_pid(Pid) ->
-            spawn(fun() -> read({Pid, Msg}) end),
+        {new, tables} ->
+            case lists:member(?GRP_TABLE, ets:all()) of
+                false -> ets:new(?GRP_TABLE, [bag, protected, named_table]);
+                true -> ok
+            end,
+            case lists:member(?REG_TABLE, ets:all()) of
+                false -> ets:new(?REG_TABLE, [set, protected, named_table]);
+                true -> ok
+            end,
             loop();
+        {Pid, Msg} when is_pid(Pid) -> read({Pid, Msg}),
+                                       loop();
+        {remove, Client} -> remove(Client),
+                            loop();
+        {resolve, GrpName, Sock} -> resolve(GrpName, Sock),
+                                    loop();
+        {add, Client, GrpList} -> add(Client, GrpList),
+                                  loop();
         _ -> loop()
     end.
 
@@ -62,7 +70,7 @@ read({Pid, Msg})->
         _ -> error
     end.
 
-% handle tcp request
+% concurrent tcp
 accept(LSock) ->
     {ok, Sock} = gen_tcp:accept(LSock),
     spawn(fun() -> accept(LSock) end),
@@ -72,10 +80,11 @@ recv(Sock) ->
     {ok, Client} = inet:peername(Sock),  % Client -> {Address, Port}
     {ok, Bin} = gen_tcp:recv(Sock, 0),
     T = binary_to_term(Bin),
+    Pid = whereis(meeqo_nameserver),
     case T of
-        {886} -> remove(Client);
-        {GrpName} when is_atom(GrpName) -> resolve(GrpName, Sock);
-        {GrpList} when is_list(GrpList) -> add(Client, GrpList);
+        {886} -> Pid ! {remove, Client};
+        {GrpName} when is_atom(GrpName) -> Pid ! {resolve, GrpName, Sock};
+        {GrpList} when is_list(GrpList) -> Pid ! {add, Client, GrpList};
         _ -> error
     end.
 
