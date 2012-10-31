@@ -79,7 +79,7 @@ recv(Sock) ->
         _ -> error
     end.
 
-
+% operate ets
 add(Client, GrpList) ->
     remove(Client),
     ets:insert(?REG_TABLE, {Client, GrpList}),
