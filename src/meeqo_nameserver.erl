@@ -53,12 +53,12 @@ loop() ->
             loop();
         {Pid, Msg} when is_pid(Pid) -> read({Pid, Msg}),
                                        loop();
-        {remove, Client} -> remove(Client),
-                            loop();
-        {resolve, GrpName, Sock} -> resolve(GrpName, Sock),
-                                    loop();
-        {add, Client, GrpList} -> add(Client, GrpList),
-                                  loop();
+        {remove, Client}            -> remove(Client),
+                                       loop();
+        {resolve, GrpName, Sock}    -> resolve(GrpName, Sock),
+                                       loop();
+        {add, Client, GrpList}      -> add(Client, GrpList),
+                                       loop();
         _ -> loop()
     end.
 
