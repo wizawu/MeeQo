@@ -20,22 +20,18 @@
 -ifndef(MEEQO_PROTOCOL).
 -define(MEEQO_PROTOCOL, defined).
 
-%%-------------------------------------
-%%  message head
-%%-------------------------------------
--define(MS_PACK,  2#10000000).
--define(MS_ALLOC, 2#01000000).
--define(MS_TRIV,  2#00100000).
--define(MS_LONG,  2#00010000).
--define(MS_SEGM,  2#00001000).
--define(MS_DEST,  2#00000010).
--define(MS_SRC,   2#00000001).
+% message head options
+-define(MS_PACK, 2#10000000).
+-define(MS_DLVR, 2#01000000).
+-define(MS_RESV, 2#00100000).
+-define(MS_LONG, 2#00010000).
+-define(MS_SEGM, 2#00001000).
+-define(MS_DEST, 2#00000010).
+-define(MS_FROM, 2#00000001).
 
--define(MS_DEFAULT_HEAD, 2#00000000).
+-define(MS_DEFAULT_HEAD, 2#01000000).
 
-%%-------------------------------------
-%%  address head
-%%-------------------------------------
+% address head options
 -define(AD_PID,  2#11110001).
 -define(AD_IPV4, 2#11110010).
 -define(AD_IPV6, 2#11110011).
