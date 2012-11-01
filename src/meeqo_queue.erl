@@ -19,18 +19,18 @@
 
 -module(meeqo_queue).
 
--export([new/0, empty/1, len/1, front/1, back/1, push/2, pop/2]).
+-export([new/0, empty/1, len/1, front/1, back/1, push/2, pop/1]).
 
 % O(1)
 new() -> {[], []}.
 
 % O(1)
 empty({[], []}) -> true;
-empty({L, R}) when is_list(L), is_list(R) -> false;
+empty({L, R}) when is_list(L), is_list(R) -> false.
 
 % O(N)
 len({L, R}) when is_list(L), is_list(R) ->
-    length(L) + length(R);
+    length(L) + length(R).
 
 % O(1)
 front({[X|L], R}) when is_list(L), is_list(R) -> X.
@@ -44,8 +44,8 @@ push({L, R}, X) when is_list(L), is_list(R) ->
     end.
 
 % O(1) amortized
-pop({[X|L], R}) when is_list(L), is_list(R) ->
+pop({[_X|L], R}) when is_list(L), is_list(R) ->
     {L, R};
-pop({[X], R}) when is_list(R) ->
+pop({[_X], R}) when is_list(R) ->
     {lists:reverse(R), []}.
 
