@@ -23,9 +23,6 @@
 
 -include("./meeqo_protocol.hrl").
 
-%%-----------------------------------------------------------------------------
-%%  API
-%%-----------------------------------------------------------------------------
 new(Msg) when is_tuple(Msg) ->
     Bin = term_to_binary(Msg),
     Len = bit_size(Bin),
@@ -36,9 +33,6 @@ new(Msg, Option) when is_tuple(Msg) ->
     
 setopt(Msg, Option) 
 
-%%-----------------------------------------------------------------------------
-%%  internal function
-%%-----------------------------------------------------------------------------
 head(Opts) when is_list(Opts) ->
     SrcAddr = lists:filter(fun src_addr/1, Opts),
     DestAddr = lists:filter(fun dest_addr/1, Opts),
@@ -85,6 +79,4 @@ dest_addr(Opt) ->
             end;
         true -> false
     end.
-
-
 
