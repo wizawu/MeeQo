@@ -19,10 +19,19 @@
 
 -module(meeqo_parcel).
 
--export([new/1]).
+-export([wrap/1, unwrap/1]).
 
-new(List) ->
-    Len = length(List),
-    ParcelHead = <<2#11111111:8, Len:24>>,
-    term_to_binary({ParcelHead, List}).
+wrap(Msgs) when is_list(Msgs) ->
+    Bin = term_to_binary({Msgs}),
+    L = bit_size(Bin),
+    <<P:L>> = Bin,
+    {L+8, <<2#10000000:8, P:L>>}.
+
+unwrap(Parcel) when is_binary(Parcel) ->
+    L = bit_size(Parcel) - 8,
+    <<_:8, P:L>> = Parcel,
+    case binary_to_term(<<P:L>>) of
+        {Msgs} when is_list(Msgs) -> Msgs;
+        _ -> error
+    end.
 
