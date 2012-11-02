@@ -19,16 +19,63 @@
 
 -module(meeqo).
 
--behavior(application).
-
--export([send/3, ]).
+-export([start/0, setsocket/1, setcourier/1]).
+-export([join/1, drop/0]).
+-export([message/1, message/2]).
+-export([send/2, send/3]).
+-export([consign/1, consign/2]).
+-export([check/0, check/1]).
+-export([fetch/0, fetch/1]).
+-export([discard/0, discard/1]).
+-export([flush/0, flush/1]).
 
 start() ->
 
-send(Msg, Addr, now) ->
-    send(Msg, Addr, 0).
+setsocket(Opts) when is_list(Opts) ->
 
-send(Msg, Addr, Lag) ->
-    
+setcourier(random) ->
 
+setcourier(Courier) when is_list(Courier) ->
+    case io_lib:pritable_list(Courier) of
+        true -> 
+        false -> error
+    end.
+
+join(GrpList) when is_list(GrpList) ->
+
+drop() ->
+
+message(Msg) ->
+
+message(Msg, Opt) ->
+
+send(Who, Msg) ->
+
+send(Who, Msg, now) ->
+    send(Who, Msg, 0);
+
+send(Who, Msg, Delay) when is_integer(Delay) ->
+
+consign(Msg) ->
+
+consign(Msg, now) ->
+    consign(Msg, 0);
+
+consign(Msg, Delay) when is_integer(Delay) ->
+
+check() ->
+
+check(From) ->
+
+fetch() ->
+
+fetch(Courier) ->
+
+discard() ->
+
+discard(Courier) ->
+
+flush() ->
+
+flush(From) ->
 
