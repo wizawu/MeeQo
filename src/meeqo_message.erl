@@ -25,14 +25,21 @@
 
 new(Msg) ->
     Bin = term_to_binary({Msg}),
-    Len = bit_size(Bin),
-    <<M:Len>> = Bin,
-    {ok, <<?MS_DEF_HEAD:8, M:Len>>}.
+    L = bit_size(Bin),
+    <<X:L>> = Bin,
+    <<?MS_DEF_HEAD:8, X:L>>.
 
-new(Msg, Opts) when is_tuple(Msg) ->
+new(Msg, Opts) when is_list(Opts) ->
+    H = option(Opts),
+    {D, DL} = dest(Opts),
+    {F, FL} = from(Opts), 
+    Bin = term_to_binary({Msg}),
+    L = bit_size(Bin),
+    <<X:L>> = Bin,
+    <<H:8, D:DL, F:FL, X:L>>. 
     
-option(Opts) when is_list(Opts) ->
-    option(<<?MS_DEF_HEAD:8>>, Opts).
+option(Opts) ->
+    option(?MS_DEF_HEAD, Opts).
     
 option(X, []) -> X;
 option(X, Opts) ->
@@ -46,9 +53,31 @@ option(X, Opts) ->
         {segm, flase} -> X band (bnot ?MS_SEGM);
         {segm, true}  -> X bor ?MS_SEGM;
         {dest, false} -> X band (bnot ?MS_DEST);
-        {dest, Addr}  -> X bor ?MS_DEST;
+        {dest, _Addr} -> X bor ?MS_DEST;
         {from, false} -> X band (bnot ?MS_FROM);
-        {from, Addr}  -> X bor ?MS_FROM
+        {from, _Addr} -> X bor ?MS_FROM
     end,
     option(Y, tl(Opts)).
+
+dest([]) -> {0, 0};
+dest(Opts) ->
+    case hd(Opts) of
+        {dest, Addr} -> 
+            Bin = meeqo_address:encode(Addr),
+            L = bit_size(Bin),
+            <<X:L>> = Bin,
+            {X, L};
+        _ -> dest(tl(Opts))
+    end.
+
+from([]) -> {0, 0};
+from(Opts) ->
+    case hd(Opts) of
+        {from, Addr} -> 
+            Bin = meeqo_address:encode(Addr),
+            L = bit_size(Bin),
+            <<X:L>> = Bin,
+            {X, L};
+        _ -> from(tl(Opts))
+    end.
 

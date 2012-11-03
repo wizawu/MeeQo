@@ -77,6 +77,12 @@ encode({grp, GrpName}) ->
             error
     end;
 
+encode(Addr) when is_list(Addr) ->
+    case resolve(Addr) of
+        error -> error;
+        X -> encode(X)
+    end;
+
 encode(_) -> error.
 
 %%-----------------------------------------------------------------------------
