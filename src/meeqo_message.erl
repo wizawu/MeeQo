@@ -45,17 +45,17 @@ option(X, []) -> X;
 option(X, Opts) ->
     Y = case hd(Opts) of
         {deliver, false} -> X band (bnot ?MS_DLVR);
-        {deliver, true}  -> X bor ?MS_DLVR; 
         {reserve, false} -> X band (bnot ?MS_RESV);
-        {reserve, true}  -> X bor ?MS_RESV;
-        {long, flase} -> X band (bnot ?MS_LONG);
-        {long, true}  -> X bor ?MS_LONG;
-        {segm, flase} -> X band (bnot ?MS_SEGM);
-        {segm, true}  -> X bor ?MS_SEGM;
-        {dest, false} -> X band (bnot ?MS_DEST);
-        {dest, _Addr} -> X bor ?MS_DEST;
-        {from, false} -> X band (bnot ?MS_FROM);
-        {from, _Addr} -> X bor ?MS_FROM
+        {long,    flase} -> X band (bnot ?MS_LONG);
+        {segm,    flase} -> X band (bnot ?MS_SEGM);
+        {dest,    false} -> X band (bnot ?MS_DEST);
+        {from,    false} -> X band (bnot ?MS_FROM);
+        {deliver,  true} -> X bor ?MS_DLVR; 
+        {reserve,  true} -> X bor ?MS_RESV;
+        {long,     true} -> X bor ?MS_LONG;
+        {segm,     true} -> X bor ?MS_SEGM;
+        {dest,    _Addr} -> X bor ?MS_DEST;
+        {from,    _Addr} -> X bor ?MS_FROM
     end,
     option(Y, tl(Opts)).
 
