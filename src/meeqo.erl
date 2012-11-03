@@ -19,39 +19,35 @@
 
 -module(meeqo).
 
--export([start/0, setsocket/1, setcourier/1]).
--export([join/1, drop/0]).
+-export([start/0, close/0, regist/1]).
+-export([setsocket/1, setcourier/1]).
 -export([message/1, message/2]).
 -export([send/2, send/3]).
 -export([consign/1, consign/2]).
 -export([check/0, check/1]).
 -export([fetch/0, fetch/1]).
--export([discard/0, discard/1]).
+-export([empty/0, empty/1]).
 -export([flush/0, flush/1]).
 
 start() ->
+
+close() ->
+
+regist(GrpList) when is_list(GrpList) ->
 
 setsocket(Opts) when is_list(Opts) ->
 
 setcourier(random) ->
 
 setcourier(Courier) when is_list(Courier) ->
-    case io_lib:pritable_list(Courier) of
-        true -> 
-        false -> error
-    end.
-
-join(GrpList) when is_list(GrpList) ->
-
-drop() ->
 
 message(Msg) ->
 
-message(Msg, Opt) ->
+message(Msg, Opts) when is_list(Opts) ->
 
-send(Who, Msg) ->
+send(Who, Msg) when is_list(Who) ->
 
-send(Who, Msg, now) ->
+send(Who, Msg, now) when is_list(Who) ->
     send(Who, Msg, 0);
 
 send(Who, Msg, Delay) when is_integer(Delay) ->
@@ -65,17 +61,17 @@ consign(Msg, Delay) when is_integer(Delay) ->
 
 check() ->
 
-check(From) ->
+check(From) when is_list(From) ->
 
 fetch() ->
 
-fetch(Courier) ->
+fetch(Courier) when is_list(Courier) ->
 
-discard() ->
+empty() ->
 
-discard(Courier) ->
+empty(From) when is_list(From) ->
 
 flush() ->
 
-flush(From) ->
+flush(Courier) when is_list(Courier) ->
 
