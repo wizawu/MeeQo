@@ -19,7 +19,8 @@
 
 -module(meeqo).
 
--export([start/0, close/0, regist/1]).
+-export([start/0, start/1, close/0]).
+-export([regist/1, syncns/0, syncns/1]).
 -export([setsocket/1, setcourier/1]).
 -export([message/1, message/2]).
 -export([send/2, send/3]).
@@ -29,11 +30,25 @@
 -export([empty/0, empty/1]).
 -export([flush/0, flush/1]).
 
+-include("./meeqo_config.hrl").
+
 start() ->
+    start(?MEEQO_CLIENT_PORT).
+
+start(Port) ->
+    case gen_tcp:listen(Port) of
+        {ok, LSock} -> ;
+        _ -> error
+    end.
 
 close() ->
+    exit('EXIT').
 
 regist(GrpList) when is_list(GrpList) ->
+
+syncns() ->
+
+syncns(Grp) when is_atom(Grp) ->
 
 setsocket(Opts) when is_list(Opts) ->
 
@@ -42,8 +57,10 @@ setcourier(random) ->
 setcourier(Courier) when is_list(Courier) ->
 
 message(Msg) ->
+    meeqo_message:new(Msg).
 
 message(Msg, Opts) when is_list(Opts) ->
+    meeqo_message:new(Msg, Opts).
 
 send(Who, Msg) when is_list(Who) ->
 

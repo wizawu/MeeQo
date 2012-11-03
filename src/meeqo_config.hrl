@@ -30,6 +30,9 @@
 -define(MEEQO_COURIERS, ["tcp://localhost"]).
 -define(MEEQO_COURIER_PORT, 7178).
 
+% client
+-define(MEEQO_CLIENT_PORT, 7177).
+
 % parcel
 -define(PARCEL_MAX_ITEMS, 1000).
 -define(PARCEL_MAX_SIZE, 16#1000).  % bytes

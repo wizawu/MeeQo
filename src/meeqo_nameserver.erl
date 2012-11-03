@@ -31,10 +31,10 @@
 start_link() ->
     case gen_tcp:listen(?MEEQO_NAMESERVER_PORT, ?TCP_OPTION) of
         {ok, LSock} -> 
-            spawn(fun() -> accept(LSock) end),
             Pid = spawn(fun() -> loop() end),
             Pid ! {new, tables},
-            true = register(?MODULE, Pid);
+            true = register(?MODULE, Pid),
+            spawn(fun() -> accept(LSock) end);
         {error, Reason} -> {error, Reason}
     end.
         
@@ -64,7 +64,7 @@ loop() ->
 
 read({Pid, Msg})->
     case Msg of
-        {886} -> remove(Pid);
+        {"$"} -> remove(Pid);
         {GrpName} when is_atom(GrpName) -> resolve(GrpName, Pid);
         {GrpList} when is_list(GrpList) -> add(Pid, GrpList);
         _ -> error
@@ -82,7 +82,7 @@ recv(Sock) ->
     T = binary_to_term(Bin),
     Pid = whereis(meeqo_nameserver),
     case T of
-        {886} -> Pid ! {remove, Client};
+        {"$"} -> Pid ! {remove, Client};
         {GrpName} when is_atom(GrpName) -> Pid ! {resolve, GrpName, Sock};
         {GrpList} when is_list(GrpList) -> Pid ! {add, Client, GrpList};
         _ -> error
