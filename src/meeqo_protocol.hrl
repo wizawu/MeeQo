@@ -29,7 +29,7 @@
 -define(MS_DEST, 2#00000010).
 -define(MS_FROM, 2#00000001).
 
--define(MS_DEFAULT_HEAD, 2#01000000).
+-define(MS_DEF_HEAD, 2#01000000).
 
 % address head options
 -define(AD_PID,  2#11110001).

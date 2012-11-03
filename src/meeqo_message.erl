@@ -23,60 +23,32 @@
 
 -include("./meeqo_protocol.hrl").
 
-new(Msg) when is_tuple(Msg) ->
-    Bin = term_to_binary(Msg),
+new(Msg) ->
+    Bin = term_to_binary({Msg}),
     Len = bit_size(Bin),
     <<M:Len>> = Bin,
-    {ok, <<?MS_DEFAULT_HEAD:8, M:Len>>}.
+    {ok, <<?MS_DEF_HEAD:8, M:Len>>}.
 
-new(Msg, Option) when is_tuple(Msg) ->
+new(Msg, Opts) when is_tuple(Msg) ->
     
-setopt(Msg, Option) 
-
-head(Opts) when is_list(Opts) ->
-    SrcAddr = lists:filter(fun src_addr/1, Opts),
-    DestAddr = lists:filter(fun dest_addr/1, Opts),
-    OptList = lists:map(fun opt_to_byte/1, Opts),
-    Head = bytes_or(OptList),
-
-
-opt_to_byte(X) ->
-    case X of
-        alloc -> ?MS_ALLOC;
-        triv  -> ?MS_TRIV;
-        long  -> ?MS_LONG;
-        segm  -> ?MS_SEGM;
-        {dest, Addr} -> ?MS_DEST;
-        {src, Addr} -> ?MS_SRC;
-        _ -> 2#00000000
-    end.
-
-bytes_or(OptBytes) when is_list(OptBytes) ->
-    bytes_or(?MS_DAFAULT_HEAD, OptBytes).
-
-bytes_or(Head, []) -> Head;
-bytes_or(Head, OptBytes) ->
-    [H|T] = OptBytes,
-    bytes_or(Head bor H, T).
-
-
-src_addr(Opt) ->
-    if 
-        is_tuple(Opt) ->
-            case Opt of
-                {src, Addr} -> true;
-                _ -> false
-            end;
-        true -> false
-    end.
+option(Opts) when is_list(Opts) ->
+    option(<<?MS_DEF_HEAD:8>>, Opts).
     
-dest_addr(Opt) ->
-    if 
-        is_tuple(Opt) ->
-            case Opt of
-                {dest, Addr} -> true;
-                _ -> false
-            end;
-        true -> false
-    end.
+option(X, []) -> X;
+option(X, Opts) ->
+    Y = case hd(Opts) of
+        {deliver, false} -> X band (bnot ?MS_DLVR);
+        {deliver, true}  -> X bor ?MS_DLVR; 
+        {reserve, false} -> X band (bnot ?MS_RESV);
+        {reserve, true}  -> X bor ?MS_RESV;
+        {long, flase} -> X band (bnot ?MS_LONG);
+        {long, true}  -> X bor ?MS_LONG;
+        {segm, flase} -> X band (bnot ?MS_SEGM);
+        {segm, true}  -> X bor ?MS_SEGM;
+        {dest, false} -> X band (bnot ?MS_DEST);
+        {dest, Addr}  -> X bor ?MS_DEST;
+        {from, false} -> X band (bnot ?MS_FROM);
+        {from, Addr}  -> X bor ?MS_FROM
+    end,
+    option(Y, tl(Opts)).
 
