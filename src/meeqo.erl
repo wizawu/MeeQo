@@ -22,7 +22,7 @@
 -export([start/0, start/1, close/0]).
 -export([regist/1, syncns/0, syncns/1]).
 -export([setsocket/1, setcourier/1]).
--export([message/1, message/2]).
+-export([msg/1, msg/2]).
 -export([send/2, send/3]).
 -export([consign/1, consign/2]).
 -export([check/0, check/1]).
@@ -42,7 +42,7 @@ start(Port) ->
     end.
 
 close() ->
-    exit('EXIT').
+    exit(self(), 'EXIT').
 
 regist(GrpList) when is_list(GrpList) ->
 
@@ -62,6 +62,7 @@ message(Msg) ->
 message(Msg, Opts) when is_list(Opts) ->
     meeqo_message:new(Msg, Opts).
 
+% do not include dest in Msg-Opts when using send
 send(Who, Msg) when is_list(Who) ->
 
 send(Who, Msg, now) when is_list(Who) ->
@@ -69,6 +70,7 @@ send(Who, Msg, now) when is_list(Who) ->
 
 send(Who, Msg, Delay) when is_integer(Delay) ->
 
+% 
 consign(Msg) ->
 
 consign(Msg, now) ->
