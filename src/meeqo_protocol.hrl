@@ -23,7 +23,7 @@
 % message head options
 -define(MS_PACK, 2#10000000).
 -define(MS_DLVR, 2#01000000).
--define(MS_RESV, 2#00100000).
+-define(MS_BLCK, 2#00100000).
 -define(MS_LONG, 2#00010000).
 -define(MS_SEGM, 2#00001000).
 -define(MS_DEST, 2#00000010).
