@@ -29,24 +29,26 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {table}).
+-record(state, {tableId}).
 
-%%=============================================================================
+%%-----------------------------------------------------------------------------
 %%  API
-%%=============================================================================
+%%-----------------------------------------------------------------------------
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
-
-%%=============================================================================
+%%-----------------------------------------------------------------------------
 %%  Callback
-%%=============================================================================
+%%-----------------------------------------------------------------------------
 init([]) ->
-    T = ets:new(anonym, [set, public]),
-    {ok, #state{table = T}}.
+    Tid = ets:new(anonym, [set, public]),
+    case Tid of
+        _ when is_integer(Tid) -> {ok, #state{tableId = Tid}};
+        _ -> {stop, error}
+    end.
 
-handle_call(get_key, _From, State) ->
-    {reply, {State#state.table, now()}, State};
+handle_call(getkey, _From, State) ->
+    {reply, {State#state.tableId, erlang:make_ref()}, State};
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 

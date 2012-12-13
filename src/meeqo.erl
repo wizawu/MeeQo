@@ -1,96 +1,77 @@
 %%
-%% Copyright (C) 2012 Hualiang Wu <wizawu@gmail.com>
+%%  Copyright (c) 2012 Hualiang Wu <wizawu@gmail.com>
 %%
-%% This file is part of MeeQo.
+%%  Permission is hereby granted, free of charge, to any person obtaining a copy
+%%  of this software and associated documentation files (the "Software"), to
+%%  deal in the Software without restriction, including without limitation the
+%%  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+%%  sell copies of the Software, and to permit persons to whom the Software is
+%%  furnished to do so, subject to the following conditions:
 %%
-%% MeeQo is free software: you can redistribute it and/or modify
-%% it under the terms of the GNU General Public License as published by
-%% the Free Software Foundation, either version 3 of the License, or
-%% (at your option) any later version.
+%%  The above copyright notice and this permission notice shall be included in
+%%  all copies or substantial portions of the Software.
 %%
-%% MeeQo is distributed in the hope that it will be useful,
-%% but WITHOUT ANY WARRANTY; without even the implied warranty of
-%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-%% GNU General Public License for more details.
-%%
-%% You should have received a copy of the GNU General Public License
-%% along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
+%%  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+%%  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+%%  IN THE SOFTWARE.
 %%
 
 -module(meeqo).
 
 -export([start/0, start/1, close/0]).
--export([regist/1, syncns/0, syncns/1]).
--export([setsocket/1, setcourier/1]).
+-export([regist/1, unregist/1, resolve/1]).
 -export([msg/1, msg/2]).
 -export([send/2, send/3]).
--export([consign/1, consign/2]).
--export([check/0, check/1]).
+-export([post/2]).
+-export([read/0, read/1]).
 -export([fetch/0, fetch/1]).
--export([empty/0, empty/1]).
--export([flush/0, flush/1]).
 
 -include("./meeqo_config.hrl").
 
+%%-----------------------------------------------------------------------------
+%%  API
+%%-----------------------------------------------------------------------------
 start() ->
     start(?MEEQO_CLIENT_PORT).
 
 start(Port) ->
     case gen_tcp:listen(Port) of
-        {ok, LSock} -> ;
+        {ok, LSock} -> gen_server:stark_link(meeqo_socket, [LSock], []);
         _ -> error
     end.
 
-close() ->
-    exit(self(), 'EXIT').
+close(MQSockRef) ->
+    unregist(MQSockRef, all),
+    exit(MQSockRef, 'EXIT').
 
 regist(GrpList) when is_list(GrpList) ->
 
-syncns() ->
 
-syncns(Grp) when is_atom(Grp) ->
-
-setsocket(Opts) when is_list(Opts) ->
-
-setcourier(random) ->
-
-setcourier(Courier) when is_list(Courier) ->
-
-message(Msg) ->
+msg(Msg) ->
     meeqo_message:new(Msg).
 
-message(Msg, Opts) when is_list(Opts) ->
+msg(Msg, Opts) when is_list(Opts) ->
     meeqo_message:new(Msg, Opts).
 
-% do not include dest in Msg-Opts when using send
-send(Who, Msg) when is_list(Who) ->
+send(MQSockRef, Msg, Who) when is_list(Who) ->
+    ok.
 
-send(Who, Msg, now) when is_list(Who) ->
-    send(Who, Msg, 0);
+post(MQSockRef, Msg) -> 
+    ok.
 
-send(Who, Msg, Delay) when is_integer(Delay) ->
+read() ->
+    ok.
 
-% 
-consign(Msg) ->
-
-consign(Msg, now) ->
-    consign(Msg, 0);
-
-consign(Msg, Delay) when is_integer(Delay) ->
-
-check() ->
-
-check(From) when is_list(From) ->
+read(From) ->
+    ok.
 
 fetch() ->
+    ok.
 
-fetch(Courier) when is_list(Courier) ->
-
-empty() ->
-
-empty(From) when is_list(From) ->
-
-flush() ->
-
-flush(Courier) when is_list(Courier) ->
+fetch(PostAmt) when is_list(Postamt) ->
+    ok.
 
