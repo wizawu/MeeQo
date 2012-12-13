@@ -20,18 +20,8 @@
 -ifndef(MEEQO_CONFIG).
 -define(MEEQO_CONFIG, defined).
 
-% nameserver 
-% tcp(without port), pid or ipc address
--define(MEEQO_NAMESERVERS, ["tcp://localhost"]).
--define(MEEQO_NAMESERVER_PORT, 7179).
-
-% courier
-% tcp(without port), pid or ipc address
--define(MEEQO_COURIERS, ["tcp://localhost"]).
--define(MEEQO_COURIER_PORT, 7178).
-
-% client
--define(MEEQO_CLIENT_PORT, 7177).
+-define(MEEQO_SOCKET_PORT, 6611).
+-define(MEEQO_SOCKET_OPT, [binary,{active,true},{packet,4}]).
 
 % parcel
 -define(PARCEL_MAX_ITEMS, 1000).
