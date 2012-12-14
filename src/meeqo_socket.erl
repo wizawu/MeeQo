@@ -24,27 +24,53 @@
 
 -export([start/0, start/1]).
 
--include("./meeqo_config.hrl").
+-define(PORT, 6611).
+-define(SOCKOPT, [binary,{active,true}]).
+-define(MAXPROC, 2).
 
 start() ->
-    start(?MEEQO_SOCKET_PORT).
+    start(?PORT).
 
 start(Port) when is_integer(Port) ->
     process_flag(trap_exit, true),
-    {ok, LSock} = gen_tcp:listen(Port, ?MEEQO_SOCKET_OPT), 
+    {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT), 
+    put(active, 0), % record the number of active processes
+    active([LSock, self()]),
     loop(LSock).
 
 loop(LSock) ->
-    Pid = spawn_link(fun() -> listen(LSock) end),
     receive
-        {'EXIT', Pid, _Why} -> loop(LSock);
+        {accepted} ->
+            case get(active) of
+                N when N == ?MAXPROC -> put(accepting, false);
+                _ -> active([LSock, self()])
+            end;
+        {'EXIT', _Pid, _Why} ->
+            put(active, get(active) - 1),
+            case get(accepting) of
+                true -> pass;
+                false -> active([LSock, self()])
+            end;
         _ -> pass
-    end.
+    end,
+    loop(LSock).
     
-listen(LSock) ->
-    {ok, Sock} = gen_tcp:accept(LSock),
-    receive
-        {tcp, Sock, _Data} -> ok;
-        {tcp_closed, Sock} -> exit('EXIT')
-    end.
+active(Args) ->
+    spawn_link(fun() -> accept(Args) end),
+    put(active, get(active) + 1),
+    put(accepting, true).
 
+accept([LSock, Pid]) ->
+    {ok, Sock} = gen_tcp:accept(LSock),
+    Pid ! {accepted},
+    inet:setopts(Sock, ?SOCKOPT),
+    recv(Sock).
+
+recv(Sock) ->
+    receive
+        {tcp, Sock, Data} ->
+            io:fwrite("~s", [Data]),
+            io:fwrite("~p~n", [inet:peername(Sock)]),
+            recv(Sock);
+        {tcp_closed, Sock} -> ok
+    end.

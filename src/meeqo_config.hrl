@@ -20,9 +20,6 @@
 -ifndef(MEEQO_CONFIG).
 -define(MEEQO_CONFIG, defined).
 
--define(MEEQO_SOCKET_PORT, 6611).
--define(MEEQO_SOCKET_OPT, [binary,{active,true},{packet,4}]).
-
 % parcel
 -define(PARCEL_MAX_ITEMS, 1000).
 -define(PARCEL_MAX_SIZE, 16#1000).  % bytes
