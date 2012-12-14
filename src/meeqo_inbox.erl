@@ -20,38 +20,37 @@
 %%  IN THE SOFTWARE.
 %%
 
--module(meeqo_queue).
+-module(meeqo_inbox).
 
--export([new/0, is_empty/1, len/1, front/1, push/2, pop/1]).
+-export([new/0]).
 
-% O(1)
-new() -> {[], [], 0}.
+new() ->
+    put(q, meeqo_queue:new()),
+    put(n, 0),  % the number of skip-read messages
+    loop().
 
-% O(1)
-is_empty({[], [], 0}) -> true;
-is_empty({_L, _R, _Len}) -> false.
+loop() ->
+    N = get(n),
+    receive
+        {read, Pid} ->
+            if  N > 0 -> put(n, N - 1),
+                         Pid ! pass;
+                N == 0 -> Pid ! pop()
+            end;
+        {sread, Pid} ->
+            X = pop(),
+            if  X == nil -> pass;
+                true -> put(n, N + 1)
+            end,
+            Pid ! X;
+        _ -> pass
+    end,
+    loop().
 
-% O(1)
-len({_L, _R, Len}) -> Len.
-
-% O(1)
-front({L, _R, Len}) -> 
-    case Len of
-        0 -> nil;
-        _ -> {ok, hd(L)}
-    end.
-    
-% O(1) amortized
-push({L, R, Len}, X) ->
-    case L of
-        [] -> {[X], [], 1};
-        _ -> {L, [X|R], Len + 1}
-    end.
-
-% O(1) amortized
-% must check is_empty/1 ahead
-pop({L, R, Len}) ->
-    case L of
-        [_X] -> {lists:reverse(R), [], Len - 1};
-        _ -> {tl(L), R, Len - 1}
+pop() ->
+    Q = get(q),
+    X = meeqo_queue:front(Q),
+    case X of
+        {ok, _} -> put(q, meeqo_queue:pop(Q)), X;
+        nil -> nil
     end.

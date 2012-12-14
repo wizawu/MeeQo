@@ -26,7 +26,7 @@
 
 -define(PORT, 6611).
 -define(SOCKOPT, [binary,{active,true}]).
--define(MAXPROC, 2).
+-define(MAXPROC, 32).
 
 start() ->
     start(?PORT).
@@ -65,6 +65,14 @@ accept([LSock, Pid]) ->
     Pid ! {accepted},
     inet:setopts(Sock, ?SOCKOPT),
     recv(Sock).
+    receive
+        {tcp, Sock, Data} ->
+            case Data of
+                "send " ++ Dest ->
+                "read " ++ From ->
+                "recv " ++ From -> :call(
+            end;
+    end
 
 recv(Sock) ->
     receive

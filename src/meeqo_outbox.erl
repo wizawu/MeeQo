@@ -20,38 +20,36 @@
 %%  IN THE SOFTWARE.
 %%
 
--module(meeqo_queue).
+-module(meeqo_outbox).
 
--export([new/0, is_empty/1, len/1, front/1, push/2, pop/1]).
+-behaviour(gen_server).
 
-% O(1)
-new() -> {[], [], 0}.
+-export([start_link/0]).
 
-% O(1)
-is_empty({[], [], 0}) -> true;
-is_empty({_L, _R, _Len}) -> false.
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
-% O(1)
-len({_L, _R, Len}) -> Len.
+-record(state, {}).
 
-% O(1)
-front({L, _R, Len}) -> 
-    case Len of
-        0 -> nil;
-        _ -> {ok, hd(L)}
-    end.
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+init([]) ->
     
-% O(1) amortized
-push({L, R, Len}, X) ->
-    case L of
-        [] -> {[X], [], 1};
-        _ -> {L, [X|R], Len + 1}
-    end.
+    {ok, #state{}}.
 
-% O(1) amortized
-% must check is_empty/1 ahead
-pop({L, R, Len}) ->
-    case L of
-        [_X] -> {lists:reverse(R), [], Len - 1};
-        _ -> {tl(L), R, Len - 1}
-    end.
+handle_call(_Request, _From, State) ->
+    Reply = ok,
+    {reply, Reply, State}.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
