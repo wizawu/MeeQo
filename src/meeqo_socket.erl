@@ -25,7 +25,7 @@
 -export([start/0, start/1]).
 
 -define(PORT, 6611).
--define(SOCKOPT, [binary,{active,true}]).
+-define(SOCKOPT, [binary,{packet,4}]).
 -define(MAXPROC, 32).
 
 start() ->
@@ -33,8 +33,11 @@ start() ->
 
 start(Port) when is_integer(Port) ->
     process_flag(trap_exit, true),
-    {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT), 
-    put(active, 0), % record the number of active processes
+    {ok, LSock} = gen_tcp:listen(Port, [{active,false} | ?SOCKOPT]),
+    % the number of active processes
+    put(active, 0), 
+    % the pid of the process waiting for connection
+    put(listener, nil), 
     active([LSock, self()]),
     loop(LSock).
 
@@ -42,37 +45,50 @@ loop(LSock) ->
     receive
         {accepted} ->
             case get(active) of
-                N when N == ?MAXPROC -> put(accepting, false);
+                N when N == ?MAXPROC -> put(listener, nil);
                 _ -> active([LSock, self()])
             end;
-        {'EXIT', _Pid, _Why} ->
+        {'EXIT', Pid, _Why} ->
             put(active, get(active) - 1),
-            case get(accepting) of
-                true -> pass;
-                false -> active([LSock, self()])
+            case get(listener) of
+                nil -> active([LSock, self()]);
+                Pid -> active([LSock, self()]);
+                _ -> pass
             end;
         _ -> pass
     end,
     loop(LSock).
     
 active(Args) ->
-    spawn_link(fun() -> accept(Args) end),
+    Pid = spawn_link(fun() -> accept(Args) end),
     put(active, get(active) + 1),
-    put(accepting, true).
+    put(listener, Pid).
 
 accept([LSock, Pid]) ->
     {ok, Sock} = gen_tcp:accept(LSock),
     Pid ! {accepted},
-    inet:setopts(Sock, ?SOCKOPT),
-    recv(Sock).
+    inet:setopts(Sock, [{active,once} | ?SOCKOPT]),
     receive
         {tcp, Sock, Data} ->
             case Data of
                 "send " ++ Dest ->
+                    case address(string:strip(Dest, both, 10)) of
+                        error -> pass;
+                        Addr -> 
+                            io:fwrite("send ~p~n", [Addr]),
+                            recv(Sock)
+                    end;
                 "read " ++ From ->
-                "recv " ++ From -> :call(
-            end;
-    end
+                    case address(string:strip(From, both, 10)) of
+                        error -> pass;
+                        Addr -> io:fwrite("read ~p~n", [Addr])
+                    end;
+                "read" -> io:fwrite("read~n",[]);
+                "read\n" -> io:fwrite("read~n",[]);
+                _ -> pass
+            end
+    end,
+    gen_tcp:close(Sock).
 
 recv(Sock) ->
     receive
@@ -81,4 +97,21 @@ recv(Sock) ->
             io:fwrite("~p~n", [inet:peername(Sock)]),
             recv(Sock);
         {tcp_closed, Sock} -> ok
+    end.
+
+address(Str) ->
+    Tokens = string:tokens(Str, " "),
+    case length(Str) of
+        2 -> 
+            [A, B] = Tokens,
+            case inet_parse:address(A) of
+                {error, einval} -> error;
+                Ip -> 
+                    case string:to_integer(B) of
+                        {P, []} when P > 0, P < 65536 ->
+                            {Ip, P};
+                        _ -> error
+                    end
+            end;
+        _ -> error
     end.
