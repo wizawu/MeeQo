@@ -21,17 +21,31 @@
 %%
 
 -ifndef(MEEQO_CONFIG).
--define(MEEQO_CONFIG, defined).
+-define(MEEQO_CONFIG, ok).
 
-% Specify the number of words allocated to the ets table storing messages. The
-% default is 2 GB on 64-bit machine.
--define(MSG_TABLE_MAXWORDS, 268435456).
+% The maximum number of clients that single MeeQo instance can handle
+% simultaneously.
+-define(MAX_CLIENTS, 32768).
 
+% The maximum number of parallel message channels that single MeeQo instances
+% can handle simultaneously. It won't guarantee the arrving order of messages 
+% which have different destinations when using multiple message channels.
+-define(MAX_CHANNELS, 32).
 
+% When you send messages to MeeQo proxy or receive messages from it, you'd
+% better set your user-level software buffer used by the driver to the value
+% below. It is nightmare when it is too small. The default is 4194304 bytes.
+-define(PROXY_BUFFER, 4194304).
 
-% parcel
--define(PARCEL_MAX_ITEMS, 1000).
--define(PARCEL_MAX_SIZE, 16#1000).  % bytes
--define(PARCEL_MAX_DELAY, 1000).    % ms
+% MeeQo will pack small pieces of messages into a larger parcel automatically.
+% You can limit parcel's maximum size by specifying the following two values.
+% Both of the defaults are 4000000.
+-define(PARCEL_MAX_MEM, 4000000).
+-define(PARCEL_MAX_MSG, 4000000).
+
+% You can NEVER change these table names.
+-define(LOCKER, meeqo_locker).
+-define(INBOX, meeqo_inbox).
+-define(OUTBOX, meeqo_outbox).
 
 -endif.

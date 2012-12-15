@@ -25,8 +25,8 @@
 -export([start/0, start/1]).
 
 -define(PORT, 6611).
--define(SOCKOPT, [binary,{packet,4}]).
--define(MAXPROC, 32).
+-define(SOCKOPT, [binary,{buffer,16777216}]).
+-define(MAXPROC, 2).
 
 start() ->
     start(?PORT).
@@ -34,9 +34,9 @@ start() ->
 start(Port) when is_integer(Port) ->
     process_flag(trap_exit, true),
     {ok, LSock} = gen_tcp:listen(Port, [{active,false} | ?SOCKOPT]),
-    % the number of active processes
+    % The number of active processes
     put(active, 0), 
-    % the pid of the process waiting for connection
+    % The pid of the process waiting for connection
     put(listener, nil), 
     active([LSock, self()]),
     loop(LSock).
@@ -45,6 +45,8 @@ loop(LSock) ->
     receive
         {accepted} ->
             case get(active) of
+                % If the number of active processes reaches the limit, new
+                % process won't be created temporarily.
                 N when N == ?MAXPROC -> put(listener, nil);
                 _ -> active([LSock, self()])
             end;
@@ -52,6 +54,7 @@ loop(LSock) ->
             put(active, get(active) - 1),
             case get(listener) of
                 nil -> active([LSock, self()]);
+                % DO NOT forget that the listener would also fail.
                 Pid -> active([LSock, self()]);
                 _ -> pass
             end;
@@ -60,17 +63,20 @@ loop(LSock) ->
     loop(LSock).
     
 active(Args) ->
-    Pid = spawn_link(fun() -> accept(Args) end),
+    Pid = spawn_link(fun() -> listen(Args) end),
     put(active, get(active) + 1),
     put(listener, Pid).
 
-accept([LSock, Pid]) ->
+listen([LSock, Pid]) ->
     {ok, Sock} = gen_tcp:accept(LSock),
+    % Inform the main process to create another listener.
     Pid ! {accepted},
+    % Accept the message header and verify it.
     inet:setopts(Sock, [{active,once} | ?SOCKOPT]),
     receive
         {tcp, Sock, Data} ->
-            case Data of
+            case binary_to_list(Data) of
+                % ASCII 10 is '\n'
                 "send " ++ Dest ->
                     case address(string:strip(Dest, both, 10)) of
                         error -> pass;
@@ -84,13 +90,14 @@ accept([LSock, Pid]) ->
                         Addr -> io:fwrite("read ~p~n", [Addr])
                     end;
                 "read" -> io:fwrite("read~n",[]);
-                "read\n" -> io:fwrite("read~n",[]);
+                "read\n" -> io:fwrite("readn~n",[]);
                 _ -> pass
             end
     end,
     gen_tcp:close(Sock).
 
 recv(Sock) ->
+    inet:setopts(Sock, [{active,once} | ?SOCKOPT]),
     receive
         {tcp, Sock, Data} ->
             io:fwrite("~s", [Data]),
@@ -100,18 +107,18 @@ recv(Sock) ->
     end.
 
 address(Str) ->
+    % The correct form should be like "192.168.1.100 8000".
     Tokens = string:tokens(Str, " "),
-    case length(Str) of
+    case length(Tokens) of
         2 -> 
             [A, B] = Tokens,
             case inet_parse:address(A) of
-                {error, einval} -> error;
-                Ip -> 
+                {ok, Ip} -> 
                     case string:to_integer(B) of
-                        {P, []} when P > 0, P < 65536 ->
-                            {Ip, P};
+                        {P, []} when P > 0, P < 65536 -> {Ip, P};
                         _ -> error
-                    end
+                    end;
+                _ -> error
             end;
         _ -> error
     end.

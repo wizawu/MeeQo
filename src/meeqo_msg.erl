@@ -17,6 +17,11 @@
 %%  along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
+% message: 1 * 32bit + Bin
+% parcel:  first 4 byte int describe k
+%          decode from byte 5 to k+4 to get a list
+%          each element in list represent a msg len
+
 -module(meeqo_message).
 
 -export([new/1, new/2]).
