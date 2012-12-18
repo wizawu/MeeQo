@@ -22,7 +22,7 @@
 
 -module(meeqo_msg).
 
--export([unpack/1]).
+-export([unpack/1, split/2, decode/1, encode/1]).
 
 unpack(Parc) when is_binary(Parc) ->
     % The first four bytes indicate the length of the message-length "list",
@@ -57,5 +57,13 @@ decode(SoFar, <<L:8, R/binary>>) ->
         decode([K|SoFar], binary:part(R, {5, byte_size(R)-5}));
     true ->
         decode([L|SoFar], R)
+    end.
+
+
+encode(L) when is_integer(L) ->
+    if L < 255 -> 
+        <<L:8>>;
+    true -> 
+        <<255:8, L:40>>
     end.
 
