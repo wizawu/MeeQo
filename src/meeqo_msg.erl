@@ -1,88 +1,61 @@
 %%
-%%  Copyright (C) 2012 Hualiang Wu <wizawu@gmail.com>
+%%  Copyright (c) 2012 Hualiang Wu <wizawu@gmail.com>
 %%
-%%  This file is part of MeeQo.
+%%  Permission is hereby granted, free of charge, to any person obtaining a copy
+%%  of this software and associated documentation files (the "Software"), to
+%%  deal in the Software without restriction, including without limitation the
+%%  rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+%%  sell copies of the Software, and to permit persons to whom the Software is
+%%  furnished to do so, subject to the following conditions:
 %%
-%%  MeeQo is free software: you can redistribute it and/or modify
-%%  it under the terms of the GNU General Public License as published by
-%%  the Free Software Foundation, either version 3 of the License, or
-%%  (at your option) any later version.
+%%  The above copyright notice and this permission notice shall be included in
+%%  all copies or substantial portions of the Software.
 %%
-%%  MeeQo is distributed in the hope that it will be useful,
-%%  but WITHOUT ANY WARRANTY; without even the implied warranty of
-%%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-%%  GNU General Public License for more details.
-%%
-%%  You should have received a copy of the GNU General Public License
-%%  along with MeeQo.  If not, see <http://www.gnu.org/licenses/>.
+%%  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+%%  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+%%  IN THE SOFTWARE.
 %%
 
-% message: 1 * 32bit + Bin
-% parcel:  first 4 byte int describe k
-%          decode from byte 5 to k+4 to get a list
-%          each element in list represent a msg len
+-module(meeqo_msg).
 
--module(meeqo_message).
+-export([unpack/1]).
 
--export([new/1, new/2]).
+unpack(Parc) when is_binary(Parc) ->
+    % The first four bytes indicate the length of the message-length "list",
+    % which is in specific binary form and will be decoded later.
+    <<HdByteSz:32, _/binary>> = Parc,
+    HdBitSz = HdByteSz * 8,
+    <<_:32, Head:HdBitSz/bitstring, Msgs/binary>> = Parc,
+    % Get the integer list representing the lengths of each message in the
+    % parcal sequentially.
+    LenList = decode(Head),
+    split(LenList, Msgs).
 
--include("./meeqo_protocol.hrl").
 
-new(Msg) ->
-    Bin = term_to_binary({Msg}),
-    L = bit_size(Bin),
-    <<X:L>> = Bin,
-    <<?MS_DEF_HEAD:8, X:L>>.
+split(LenList, Msgs) -> split([], LenList, Msgs).
 
-new(Msg, Opts) when is_list(Opts) ->
-    H = option(Opts),
-    {D, DL} = dest(Opts),
-    {F, FL} = from(Opts), 
-    Bin = term_to_binary({Msg}),
-    L = bit_size(Bin),
-    <<X:L>> = Bin,
-    <<H:8, D:DL, F:FL, X:L>>. 
-    
-option(Opts) ->
-    option(?MS_DEF_HEAD, Opts).
-    
-option(X, []) -> X;
-option(X, Opts) ->
-    Y = case hd(Opts) of
-        {deliver, false} -> X band (bnot ?MS_DLVR);
-        {reserve, false} -> X band (bnot ?MS_RESV);
-        {long,    flase} -> X band (bnot ?MS_LONG);
-        {segm,    flase} -> X band (bnot ?MS_SEGM);
-        {dest,    false} -> X band (bnot ?MS_DEST);
-        {from,    false} -> X band (bnot ?MS_FROM);
-        {deliver,  true} -> X bor ?MS_DLVR; 
-        {reserve,  true} -> X bor ?MS_RESV;
-        {long,     true} -> X bor ?MS_LONG;
-        {segm,     true} -> X bor ?MS_SEGM;
-        {dest,    _Addr} -> X bor ?MS_DEST;
-        {from,    _Addr} -> X bor ?MS_FROM
-    end,
-    option(Y, tl(Opts)).
+split(MsgList, [], <<>>) -> lists:reverse(MsgList);
+split(SoFar, [H0|T], MsgBin) ->
+    H = H0 * 8,
+    <<M:H/bitstring, R/binary>> = MsgBin,
+    split([M|SoFar], T, R).
 
-dest([]) -> {0, 0};
-dest(Opts) ->
-    case hd(Opts) of
-        {dest, Addr} -> 
-            Bin = meeqo_address:encode(Addr),
-            L = bit_size(Bin),
-            <<X:L>> = Bin,
-            {X, L};
-        _ -> dest(tl(Opts))
-    end.
 
-from([]) -> {0, 0};
-from(Opts) ->
-    case hd(Opts) of
-        {from, Addr} -> 
-            Bin = meeqo_address:encode(Addr),
-            L = bit_size(Bin),
-            <<X:L>> = Bin,
-            {X, L};
-        _ -> from(tl(Opts))
+decode(Head) -> decode([], Head).
+
+decode(LenList, <<>>) -> lists:reverse(LenList);
+decode(SoFar, <<L:8, R/binary>>) ->
+    % If the message length is smaller than 255, use one byte to represent it.
+    % Otherwise, use 255 followed by 5 bytes which represent the length.
+    % Therefore the maximum message size is 1 TB.
+    if L == 255 ->
+        <<K:40>> = binary:part(R, {0, 5}),
+        decode([K|SoFar], binary:part(R, {5, byte_size(R)-5}));
+    true ->
+        decode([L|SoFar], R)
     end.
 
