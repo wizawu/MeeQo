@@ -22,18 +22,30 @@
 
 -module(meeqo_msg).
 
--export([unpack/1, split/2, decode/1, encode/1]).
+-export([unpack/1, split/2, decode/1]).
+
+% unpack(binary) -> {ip(), [binary, ...]}
+% ip() -> {integer, ...}
+% size(ip()) -> 4 | 8
 
 unpack(Parc) when is_binary(Parc) ->
-    % The first four bytes indicate the length of the message-length "list",
-    % which is in specific binary form and will be decoded later.
-    <<HdByteSz:32, _/binary>> = Parc,
-    HdBitSz = HdByteSz * 8,
-    <<_:32, Head:HdBitSz/bitstring, Msgs/binary>> = Parc,
-    % Get the integer list representing the lengths of each message in the
-    % parcal sequentially.
-    LenList = decode(Head),
-    split(LenList, Msgs).
+    % The first 4 bits indicate the ip address type. 00 for ipv4, 01 for ipv6.
+    % The next 28 bits indicate the length of the message-length "list", which
+    % is in specific binary form and will be decoded later. The following 4 or
+    % 16 bytes indicate the ip address. All above make up the message header.
+    <<AddrType:4/integer, MLLBytes:28/integer, _/binary>> = Parc,
+    Addr = case AddrType of
+        0 -> list_to_tuple([X || <<X>> <= binary_part(Parc, {4,4})]);
+        1 -> list_to_tuple([X || <<X:16>> <= binary_part(Parc, {4,16})])
+    end,
+    % The header is followed by message-length list(MLL) and the main body.
+    HdBits = 32 + (case AddrType of 0 -> 32; 1 -> 128 end),
+    MLLBits = MLLBytes * 8,
+    <<_:HdBits, MLL:MLLBits/bitstring, Msgs/binary>> = Parc,
+    % Transform the MLL from binary to integer list and split the main body into 
+    % messages according to the list.
+    LenList = decode(MLL),
+    {Addr, split(LenList, Msgs)}.
 
 
 split(LenList, Msgs) -> split([], LenList, Msgs).
@@ -45,7 +57,7 @@ split(SoFar, [H0|T], MsgBin) ->
     split([M|SoFar], T, R).
 
 
-decode(Head) -> decode([], Head).
+decode(MLL) -> decode([], MLL).
 
 decode(LenList, <<>>) -> lists:reverse(LenList);
 decode(SoFar, <<L:8, R/binary>>) ->
@@ -57,13 +69,5 @@ decode(SoFar, <<L:8, R/binary>>) ->
         decode([K|SoFar], binary:part(R, {5, byte_size(R)-5}));
     true ->
         decode([L|SoFar], R)
-    end.
-
-
-encode(L) when is_integer(L) ->
-    if L < 255 -> 
-        <<L:8>>;
-    true -> 
-        <<255:8, L:40>>
     end.
 
