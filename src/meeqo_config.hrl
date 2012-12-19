@@ -20,27 +20,30 @@
 %%  IN THE SOFTWARE.
 %%
 
--ifndef(MEEQO_CONFIG).
--define(MEEQO_CONFIG, ok).
+% Default port. It MUST be an odd number.
+-define(PORT, 6611).
 
 % The maximum number of clients that single MeeQo instance can handle
 % simultaneously.
 -define(MAX_CLIENTS, 32768).
 
-% The maximum number of parallel message channels that single MeeQo instances
-% can handle simultaneously. It won't guarantee the arrving order of messages 
-% which have different destinations when using multiple message channels.
--define(MAX_CHANNELS, 32).
+% The maximum number of sockets that single MeeQo instance can use to send
+% messages to other MeeQo instances. The messages sent to the same destination
+% are guaranteed FIFO.
+-define(MAX_PIPES, 32).
 
 % When you send messages to MeeQo proxy or receive messages from it, you'd
-% better set your user-level software buffer used by the driver to the value
-% below. It is nightmare when it is too small. The default is 4194304 bytes.
--define(PROXY_BUFFER, 4194304).
+% better set your system socket buffer to the value below. It is nightmare when
+% it is too small. The default are 4 MiB for RCVBUF and 4 KiB for SNDBUF. It
+% is strongly recommended to increase the SNDBUF to MiB level. The system tuning
+% refers http://www.psc.edu/index.php/networking/641-tcp-tune.
+-define(PROXY_RCVBUF, 4194304).
+-define(PROXY_SNDBUF, 4096).
 
 % MeeQo will pack small pieces of messages into a larger parcel automatically.
 % You can limit parcel's maximum size by specifying the following two values.
 % Both of the defaults are 4000000.
--define(PARCEL_MAX_MEM, 4000000).
+-define(PARCEL_MAX_MEM, 4000000).  % bytes
 -define(PARCEL_MAX_MSG, 4000000).
 
 % You can NEVER change these table names.
@@ -48,4 +51,3 @@
 -define(INBOX, meeqo_inbox).
 -define(OUTBOX, meeqo_outbox).
 
--endif.

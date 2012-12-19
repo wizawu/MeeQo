@@ -22,56 +22,19 @@
 
 -module(meeqo).
 
--export([start/0, start/1, close/0]).
--export([regist/1, unregist/1, resolve/1]).
--export([msg/1, msg/2]).
--export([send/2, send/3]).
--export([post/2]).
--export([read/0, read/1]).
--export([fetch/0, fetch/1]).
+-behaviour(supervisor).
 
--include("./meeqo_config.hrl").
+-export([start_link/0, start_link/1]).
 
-%%-----------------------------------------------------------------------------
-%%  API
-%%-----------------------------------------------------------------------------
-start() ->
-    start(?MEEQO_CLIENT_PORT).
+-include("meeqo_config.hrl").
 
-start(Port) ->
-    case gen_tcp:listen(Port) of
-        {ok, LSock} -> gen_server:stark_link(meeqo_socket, [LSock], []);
-        _ -> error
-    end.
+start_link() -> start_link(?PORT).
 
-close(MQSockRef) ->
-    unregist(MQSockRef, all),
-    exit(MQSockRef, 'EXIT').
+start_link(Port) when is_integer(Port) ->
+    case (Port band 1) of
+        0 -> exit('The port number MUST be odd');
+        1 -> supervisor:start_link(?MODULE, [Port])
+    end. 
 
-regist(GrpList) when is_list(GrpList) ->
-
-
-msg(Msg) ->
-    meeqo_message:new(Msg).
-
-msg(Msg, Opts) when is_list(Opts) ->
-    meeqo_message:new(Msg, Opts).
-
-send(MQSockRef, Msg, Who) when is_list(Who) ->
+init([ProxyPort]) ->
     ok.
-
-post(MQSockRef, Msg) -> 
-    ok.
-
-read() ->
-    ok.
-
-read(From) ->
-    ok.
-
-fetch() ->
-    ok.
-
-fetch(PostAmt) when is_list(Postamt) ->
-    ok.
-
