@@ -26,7 +26,19 @@
 
 -export([start_link/0, start_link/1]).
 
+-export([init/1]).
+
 -include("meeqo_config.hrl").
+
+-define(PROXY_SOCKOPT, [binary, {active, false}, 
+                        {recbuf, ?PROXY_RCVBUF}, 
+                        {sndbuf, ?PROXY_SNDBUF}
+                       ]).
+
+-define(PIPE_SOCKOPT, [binary, {active, false},
+                       {recbuf, ?PIPE_BUF},
+                       {sndbuf, ?PIPE_BUF}
+                      ]).
 
 start_link() -> start_link(?PORT).
 
@@ -36,5 +48,19 @@ start_link(Port) when is_integer(Port) ->
         1 -> supervisor:start_link(?MODULE, [Port])
     end. 
 
-init([ProxyPort]) ->
-    ok.
+init([Port]) ->
+    Name = "meeqo_" ++ integer_to_list(Port),
+    ets:new(list_to_atom(Name), [set, public, named_table]),
+    Strategy = {one_for_all, 0, 1},
+    Router = {router, {meeqo_router, start_link, [Port+1]},
+              brutal_kill, worker,[meeqo_router]},
+    Inbox  = {inbox, {meeqo_inbox, start_link, []},
+              brutal_kill, worker,[]},
+    Proxy  = {proxy, {meeqo_proxy, start_link, [Port]},
+              brutal_kill, worker,[]},
+    {ok, {Strategy, [Router, Inbox, Proxy]}}.
+
+
+
+
+

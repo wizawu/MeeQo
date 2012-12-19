@@ -20,30 +20,35 @@
 %%  IN THE SOFTWARE.
 %%
 
-% Default port. It MUST be an odd number.
+% Default port. It MUST be an odd number. If you're going to run multiple MeeQo
+% instances on the same machine, specify different port for each of them.
 -define(PORT, 6611).
 
 % The maximum number of clients that single MeeQo instance can handle
 % simultaneously.
 -define(MAX_CLIENTS, 32768).
 
+% When you send messages to MeeQo proxy or receive messages from it, you'd
+% better set your system socket buffer to the value below. It is nightmare when
+% it is too small. The default are 4 MiB for RCVBUF and 16 KiB for SNDBUF. It
+% is strongly recommended to increase the SNDBUF to MiB level. The system tuning
+% refers http://www.psc.edu/index.php/networking/641-tcp-tune.
+-define(PROXY_RCVBUF, 4194304).
+-define(PROXY_SNDBUF, 16384).
+
+% The size of socket buffer that MeeQo use to send messages to other instances.
+% The default is 4 MiB, which means both RCVBUF and SNDBUF are 4 MiB.
+-define(PIPE_BUF, 4194304).
+
 % The maximum number of sockets that single MeeQo instance can use to send
 % messages to other MeeQo instances. The messages sent to the same destination
 % are guaranteed FIFO.
 -define(MAX_PIPES, 32).
 
-% When you send messages to MeeQo proxy or receive messages from it, you'd
-% better set your system socket buffer to the value below. It is nightmare when
-% it is too small. The default are 4 MiB for RCVBUF and 4 KiB for SNDBUF. It
-% is strongly recommended to increase the SNDBUF to MiB level. The system tuning
-% refers http://www.psc.edu/index.php/networking/641-tcp-tune.
--define(PROXY_RCVBUF, 4194304).
--define(PROXY_SNDBUF, 4096).
-
 % MeeQo will pack small pieces of messages into a larger parcel automatically.
 % You can limit parcel's maximum size by specifying the following two values.
-% Both of the defaults are 4000000.
--define(PARCEL_MAX_MEM, 4000000).  % bytes
+% The defaults are 4000000 bytes and 4000000.
+-define(PARCEL_MAX_MEM, 4000000).
 -define(PARCEL_MAX_MSG, 4000000).
 
 % You can NEVER change these table names.
