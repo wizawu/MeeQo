@@ -22,35 +22,108 @@
 
 -module(meeqo_inbox).
 
--export([new/0]).
+-export([start_link/0]).
 
-new() ->
-    put(q, meeqo_queue:new()),
-    put(n, 0),  % the number of skip-read messages
+
+start_link(WorkerTable) ->
+    ets:insert(WorkTable, {?MODULE, self()}),
+    Tid = ets:new(anonym, [ordered_set]),
+    put(ts, 0),
+    put(tid, Tid),
+    process_flag(trap_exit, true),
     loop().
 
-loop() ->
-    N = get(n),
+
+loop(Tid) ->
     receive
+        {save, {Addr, Msg}} -> save(Addr, Msg);
         {read, Pid} ->
-            if  N > 0 -> put(n, N - 1),
-                         Pid ! pass;
-                N == 0 -> Pid ! pop()
+            case lists:keyfind(size, 1, ets:info(Tid)) of
+                {size, 0} -> Pid ! nil;
+                {size, _} ->
+                    [{_Ts, Addr}] = ets:lookup(Tid, ets:first(Tid)),
+                    read(Addr, Pid)
             end;
-        {sread, Pid} ->
-            X = pop(),
-            if  X == nil -> pass;
-                true -> put(n, N + 1)
-            end,
-            Pid ! X;
-        _ -> pass
+        {read, Addr, Pid} -> read(Addr, Pid);
+        {'EXIT', _Pid, 'IDLE'} -> ok
     end,
-    loop().
+    loop(Tid).
 
-pop() ->
-    Q = get(q),
-    X = meeqo_queue:front(Q),
-    case X of
-        {ok, _} -> put(q, meeqo_queue:pop(Q)), X;
-        nil -> nil
+
+save(Addr, Msg) ->
+    case get(Addr) of
+        undefined ->
+            Pid = spawn_link(fun() -> session() end),
+            put(Addr, Pid);
+        Pid when is_pid(Pid) -> ok
+    end,
+    Ts = get(ts) + 1,
+    put(ts, Ts),
+    Pid ! {save, Msg, Ts},
+    receive
+        TopTs when is_integer(TopTs) ->
+            ets:insert(get(tid), {TopTs, Addr})
     end.
+
+
+read(Addr, Pid) ->
+    case get(Addr) of
+        undefined -> Pid ! nil;
+            SesPid ->
+                    SesPid ! {read, self()},
+                    receive
+                        nil -> Pid ! nil;
+                        {Msg, nil} ->
+                            ets:delete(Tid, Addr),
+
+                        {Msg, Ts} ->
+                            ets:insert(Tid, {Addr, Ts}),
+                    end
+
+
+session() ->
+    receive
+        {save, Msg, Uts, From} ->
+            % get(ts) is the timestamp of the process, while Uts is the unified
+            % timestamp of inbox.
+            Ts = case get(ts) of
+                undefined -> put(ts, 1), 1;
+                X -> put(ts, X + 1), X + 1
+            end,
+            Top = case get(top) of
+                % If get(top) is undefined, either the process is just newed or
+                % all the former messages are read.
+                undefined -> put(top, Ts), Ts;
+                Y -> Y
+            end,
+            put(Ts, {Msg, Uts}),
+            From ! element(2, get(Top));
+        {read, From} ->
+            Top = get(top),
+            case get(Top) of
+                {Msg, _} -> 
+                    % Keep in mind to free the process memory.
+                    erase(Top),
+                    put(top, Top + 1),
+                    Next = case get(Top + 1) of
+                        {_, Uts} -> Uts;
+                        undefined ->
+                            % In this situation, there is no more message.
+                            erlang:send_after(30000, self(), idle),
+                            nil
+                    end,
+                    % Reply with the message wanted and oldest timestamp used to
+                    % update the queueing order in inbox.
+                    From ! {Msg, Next};
+                undefined ->
+                    From ! nil
+            end;
+        idle ->
+            % If there is no unread message, exit.
+            case get(get(top)) of
+                undefined -> exit('IDLE');
+                _ -> ok
+            end
+    end,
+    session().
+
