@@ -29,11 +29,11 @@
 % size(ip()) -> 4 | 8
 
 unpack(Parc) when is_binary(Parc) ->
-    % The first 4 bits indicate the ip address type. 00 for ipv4, 01 for ipv6.
-    % The next 28 bits indicate the length of the message-length "list", which
+    % The first 2 bits indicate the ip address type. 00 for ipv4, 01 for ipv6.
+    % The next 30 bits indicate the length of the message-length "list", which
     % is in specific binary form and will be decoded later. The following 4 or
     % 16 bytes indicate the ip address. All above make up the message header.
-    <<AddrType:4/integer, MLLBytes:28/integer, _/binary>> = Parc,
+    <<AddrType:2/integer, MLLBytes:30/integer, _/binary>> = Parc,
     Addr = case AddrType of
         0 -> list_to_tuple([X || <<X>> <= binary_part(Parc, {4,4})]);
         1 -> list_to_tuple([X || <<X:16>> <= binary_part(Parc, {4,16})])
