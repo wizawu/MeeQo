@@ -20,7 +20,7 @@
 %%  IN THE SOFTWARE.
 %%
 
--module(meeqo_router).
+-module(meeqo_sluice).
 
 -behaviour(gen_server).
 
@@ -56,6 +56,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({'EXIT', _Pid, 'IDLE'}, State) ->
+    io:format("Pipe ~w idles and exits.~n", [_Pid]),
     #state{tid = Tid, act = N} = State,
     case ets:first(Tid) of
         '$end_of_table' ->

@@ -20,13 +20,9 @@
 %%  IN THE SOFTWARE.
 %%
 
-% Default port. If you're going to run multiple MeeQo instances on the same 
-% machine, specify different ports for them.
+% Default port. It MUST be an odd number. If you're going to run multiple MeeQo
+% instances on the same machine, specify different ports for them.
 -define(PORT, 6611).
-
-% The maximum number of connections that single MeeQo instance can handle
-% simultaneously, including with clients and with other instances.
--define(MAX_SOCKS, 32768).
 
 % When you send messages to MeeQo proxy or receive messages from it, you'd
 % better set your socket buffer to the value below. The defaults are 4 MiB for

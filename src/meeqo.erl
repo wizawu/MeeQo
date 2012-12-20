@@ -49,18 +49,14 @@ start_link(Port) when is_integer(Port) ->
     end. 
 
 init([Port]) ->
-    Name = "meeqo_" ++ integer_to_list(Port),
+    TableName = "meeqo_" ++ integer_to_list(Port),
     ets:new(list_to_atom(Name), [set, public, named_table]),
     Strategy = {one_for_all, 0, 1},
-    Router = {router, {meeqo_router, start_link, [Port+1]},
+    Router = {router, {meeqo_router, start_link, [Name]},
               brutal_kill, worker,[meeqo_router]},
     Inbox  = {inbox, {meeqo_inbox, start_link, []},
               brutal_kill, worker,[]},
     Proxy  = {proxy, {meeqo_proxy, start_link, [Port]},
               brutal_kill, worker,[]},
     {ok, {Strategy, [Router, Inbox, Proxy]}}.
-
-
-
-
 

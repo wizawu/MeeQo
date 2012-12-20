@@ -65,7 +65,7 @@ decode(LenList, <<>>) -> lists:reverse(LenList);
 decode(SoFar, <<L:8, R/binary>>) ->
     % If the message length is smaller than 255, use one byte to represent it.
     % Otherwise, use 255 followed by 5 bytes which represent the length.
-    % Therefore the maximum message size is 1 TB.
+    % Therefore the maximum message size is 1 TiB.
     if L == 255 ->
         <<K:40>> = binary:part(R, {0, 5}),
         decode([K|SoFar], binary:part(R, {5, byte_size(R)-5}));

@@ -111,7 +111,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({'EXIT', _Pid, 'IDLE'}, State) ->
-    io:format("~w idles and exits.~n", [_Pid]),
+    io:format("Session ~w idles and exits.~n", [_Pid]),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
