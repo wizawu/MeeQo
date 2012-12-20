@@ -40,38 +40,44 @@ init([SysTbl]) ->
     ets:insert(SysTbl, {?MODULE, self()}),
     % Create a table to define the order of pipes to be actived.
     Tid = ets:new(anonym, [ordered_set]),
-    process_flag(trap_exit, true),
     {ok, #state{tid = Tid, ts = 0, act = 0}}.
 
 handle_cast({queue, Pid}, State) ->
     #state{tid = Tid, ts = Ts, act = N} = State,
     if N < ?MAX_ACT_PIPES ->
-        Pid ! send,
+        gen_fsm:send_event(Pid, send),
         {noreply, State#state{act = N + 1}};
     true ->
         ets:insert(Tid, {Ts + 1, Pid}),
         {noreply, State#state{ts = Ts + 1}}
     end;
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-handle_info({'EXIT', _Pid, 'IDLE'}, State) ->
-    io:format("Pipe ~w idles and exits.~n", [_Pid]),
+handle_cast({sent, Pid}, State) ->
+    #state{tid = Tid, ts = Ts} = State,
+    ets:insert(Tid, {Ts + 1, Pid}),
+    % Active another pipe to send message and delete its entry.
+    Key = ets:first(Tid),
+    [{_, ActPid}] = ets:lookup(Tid, Key),
+    ets:delete(Tid, Key),
+    gen_fsm:send_event(ActPid, send),
+    {noreply, State#state{ts = Ts + 1}};
+handle_cast(sent, State) ->
     #state{tid = Tid, act = N} = State,
     case ets:first(Tid) of
         '$end_of_table' ->
             {noreply, State#state{act = N - 1}};
         Key ->
-            % Active another pipe to send message and delete its entry.
             [{_, Pid}] = ets:lookup(Tid, Key),
             ets:delete(Tid, Key),
-            Pid ! send,
+            gen_fsm:send_event(Pid, send),
             {noreply, State}
     end;
-handle_info(_Info, State) ->
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+    
+handle_call(_Request, _From, State) ->
     {noreply, State}.
 
-handle_call(_Request, _From, State) ->
+handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->

@@ -42,6 +42,7 @@ init([Port]) ->
     % Create a table to record important process ids and table ids.
     SysTbl = list_to_atom("meeqo_" ++ integer_to_list(Port)),
     ets:new(SysTbl, [set, public, named_table]),
+    ets:insert(SysTbl, {port, Port}),
     % Locker is used to record references of messages.
     Locker = ets:new(anonym, [set, public]),
     ets:insert(SysTbl, {meeqo_locker, Locker}),

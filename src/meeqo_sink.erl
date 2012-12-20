@@ -70,13 +70,14 @@ recv(Sock, InboxPid, LockerTid) ->
     receive
         {tcp, Sock, Parc} ->
             gen_tcp:send(Sock, <<"ok">>),
-            {Addr, MsgList} = meeqo_msg:unpack(Parc),
+            {ok, {PeerIp, _}} = inet:peername(Sock),
+            {PeerPort, MsgList} = meeqo_msg:unpack(Parc),
             Save = fun(Msg) -> 
                 % Use a reference to represent the message in order to prevent
                 % copying messages across processes.
                 Ref = make_ref(),
                 ets:insert(LockerTid, {Ref, Msg}),
-                gen_server:cast(InboxPid, {save, Addr, Ref})
+                gen_server:cast(InboxPid, {save, {PeerIp, PeerPort}, Ref})
             end,
             lists:map(Save, MsgList),
             recv(Sock, InboxPid, LockerTid);
