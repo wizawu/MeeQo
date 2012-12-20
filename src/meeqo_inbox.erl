@@ -31,96 +31,107 @@
 
 -record(state, {tid, uts, unread}).
 
+
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
 
+
 init([WorkerTable]) ->
     ets:insert(WorkerTable, {?MODULE, self()}),
-    % Create a table to store the smallest timestamp of all sessions.
+    % Create a table to store the minimum timestamp of all sessions.
     % The K-V is {ts(), addr()}.
     Tid = ets:new(anonym, [ordered_set]),
     process_flag(trap_exit, true),
-    {ok, #state{tid=Tid, uts=0, unread=0}}.
+    {ok, #state{tid = Tid, uts = 0, unread = 0}}.
 
-handle_call({save, Addr, Msg}, _From, State) ->
-    #state{tid=Tid, uts=Uts, unread=Unread} = State,
-    case get(Addr) of
-        undefined ->
-            Pid = spawn_link(fun() -> session() end),
-            put(Addr, Pid),
-            Pid ! {save, Msg, Uts + 1};
-        Pid when is_pid(Pid) ->
-            Pid ! {save, Msg, Uts + 1}
-    end,
-    {reply, ok, #state{tid=Tid, uts=Uts+1, unread=Unread+1}}.
 
-handle_call({read}, _From, State) ->
-    #state{tid=Tid, uts=Uts, unread=Unread} = State,
+handle_call(read, From, State) ->
+    #state{tid = Tid, unread = Unread} = State,
+    case Unread of
+        0 -> {reply, nil, State};
+        N when N > 0 ->
+            % Keep in mind the lookup will return a list.
+            [{_, Addr}] = ets:lookup(Tid, ets:first(Tid)),
+            handle_call({read, Addr}, From, State)
+    end;
 
 handle_call({read, Addr}, _From, State) ->
-    #state{tid=Tid, uts=Uts, unread=Unread} = State,
-    case get(Addr) of
-        undefined -> Reply = nil;
+    #state{tid = Tid, unread = Unread} = State,
+    Reply = case get(Addr) of
+        undefined -> nil;
         Pid when is_pid(Pid) ->
-            
-    
+            case is_process_alive(Pid) of
+                false -> 
+                    % Delete lazily.
+                    erase(Addr),
+                    nil;
+                true ->
+                    case gen_server:call(Pid, read) of
+                        nil -> nil;
+                        {Msg, Uts, nil} ->
+                            ets:delete(Tid, Uts),
+                            Msg;
+                        {Msg, Uts, NextUts} ->
+                            ets:delete(Tid, Uts),
+                            ets:insert(Tid, {NextUts, Addr}),
+                            Msg
+                    end
+            end
+    end,
+    NewUnread = (case Reply of nil -> Unread; _ -> Unread - 1 end),
+    {reply, Reply, State#state{unread = NewUnread}};
+
+handle_call(_Request, _From, State) ->
+    {noreply, State}.
+
+
+handle_cast({save, Addr, Msg}, State) ->
+    #state{tid = Tid, uts = Uts, unread = Unread} = State,
+    Ses = case get(Addr) of
+        undefined ->
+            % Create a meeqo_session for each address.
+            {ok, Pid} = meeqo_session:start_link([]),
+            put(Addr, Pid),
+            Pid;
+        Pid when is_pid(Pid) -> 
+            % Since keys are deleted lazily, it is possible that the process
+            % is already dead.
+            case is_process_alive(Pid) of
+                true -> Pid;
+                false ->
+                    {ok, NewPid} = meeqo_session:start_link([]),
+                    put(Addr, NewPid),
+                    NewPid
+            end
+    end,
+    % In case that when the message queue of the session was just emptied, its
+    % entry is not in the table, a new {uts(), addr()} should be inserted.
+    SesMinUts = gen_server:call(Ses, {save, Msg, Uts + 1}),
+    case ets:member(Tid, SesMinUts) of
+        true -> ok;
+        false -> ets:insert(Tid, {SesMinUts, Addr})
+    end,
+    {noreply, State#state{uts = Uts + 1, unread = Unread + 1}};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+
+handle_info({'EXIT', _Pid, 'IDLE'}, State) ->
+    io:format("~w idles and exits.~n", [_Pid]),
+    {noreply, State};
+
+handle_info({'EXIT', _Pid, Why}, State) ->
+    % If exception happens in some session, inbox will stop.
+    {stop, Why, State};
+
 handle_info(_Info, State) ->
     {noreply, State}.
+
 
 terminate(_Reason, _State) ->
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-
-session() ->
-    receive
-        {save, Msg, Uts, From} ->
-            % get(ts) is the timestamp of the process, while Uts is the unified
-            % timestamp of inbox.
-            Ts = case get(ts) of
-                undefined -> put(ts, 1), 1;
-                X -> put(ts, X + 1), X + 1
-            end,
-            Top = case get(top) of
-                % If get(top) is undefined, either the process is just newed or
-                % all the former messages are read.
-                undefined -> put(top, Ts), Ts;
-                Y -> Y
-            end,
-            put(Ts, {Msg, Uts}),
-            From ! element(2, get(Top));
-        {read, From} ->
-            Top = get(top),
-            case get(Top) of
-                {Msg, _} -> 
-                    % Keep in mind to free the process memory.
-                    erase(Top),
-                    put(top, Top + 1),
-                    Next = case get(Top + 1) of
-                        {_, Uts} -> Uts;
-                        undefined ->
-                            % In this situation, there is no more message.
-                            erlang:send_after(30000, self(), idle),
-                            nil
-                    end,
-                    % Reply with the message wanted and oldest timestamp used to
-                    % update the queueing order in inbox.
-                    From ! {Msg, Next};
-                undefined ->
-                    From ! nil
-            end;
-        idle ->
-            % If there is no unread message, exit.
-            case get(get(top)) of
-                undefined -> exit('IDLE');
-                _ -> ok
-            end
-    end,
-    session().
 

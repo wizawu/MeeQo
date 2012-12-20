@@ -53,15 +53,15 @@ handle_call(read, _From, State) ->
     #state{top = Top} = State,
     % Keep in mind to free the memory.
     case erase(Top) of
-        {Msg, _} ->
-            MinUts = case get(Top + 1) of
-                {_, Uts} -> Uts;
+        {Msg, Uts} ->
+            NextUts = case get(Top + 1) of
+                {_, X} -> X;
                 undefined ->
                     % In this situation, there is no more message.
                     erlang:send_after(30000, self(), idle),
                     nil
             end,
-            {reply, {Msg, MinUts}, State#state{top = Top + 1}};
+            {reply, {Msg, Uts, NextUts}, State#state{top = Top + 1}};
         undefined ->
             {reply, nil, State}
     end;
