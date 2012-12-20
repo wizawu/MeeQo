@@ -36,8 +36,8 @@
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
 
-init([WorkerTable]) ->
-    ets:insert(WorkerTable, {?MODULE, self()}),
+init([SysTbl]) ->
+    ets:insert(SysTbl, {?MODULE, self()}),
     % Create a table to define the order of pipes to be actived.
     Tid = ets:new(anonym, [ordered_set]),
     process_flag(trap_exit, true),

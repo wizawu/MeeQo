@@ -31,10 +31,10 @@
                   {sndbuf, ?PIPE_BUF}
                  ]).
 
-start_link([WorkerTable, Port]) when is_integer(Port) ->
+start_link([SysTbl, Port]) when is_integer(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
-    [{_, InboxPid}] = ets:lookup(WorkerTable, meeqo_inbox),
-    [{_, LockerTid}] = ets:lookup(WorkerTable, meeqo_locker),
+    [{_, InboxPid}] = ets:lookup(SysTbl, meeqo_inbox),
+    [{_, LockerTid}] = ets:lookup(SysTbl, meeqo_locker),
     process_flag(trap_exit, true),
     Args = [LSock, InboxPid, LockerTid],
     new_listener(Args),

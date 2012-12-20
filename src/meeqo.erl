@@ -30,33 +30,37 @@
 
 -include("meeqo_config.hrl").
 
--define(PROXY_SOCKOPT, [binary, {active, false}, 
-                        {recbuf, ?PROXY_RCVBUF}, 
-                        {sndbuf, ?PROXY_SNDBUF}
-                       ]).
-
--define(PIPE_SOCKOPT, [binary, {active, false},
-                       {recbuf, ?PIPE_BUF},
-                       {sndbuf, ?PIPE_BUF}
-                      ]).
-
 start_link() -> start_link(?PORT).
 
 start_link(Port) when is_integer(Port) ->
     case (Port band 1) of
-        0 -> exit('The port number MUST be odd');
+        0 -> exit('The port number MUST be odd.');
         1 -> supervisor:start_link(?MODULE, [Port])
     end. 
 
 init([Port]) ->
-    TableName = "meeqo_" ++ integer_to_list(Port),
-    ets:new(list_to_atom(Name), [set, public, named_table]),
+    % Create a table to record important process ids and table ids.
+    SysTbl = list_to_atom("meeqo_" ++ integer_to_list(Port)),
+    ets:new(SysTbl, [set, public, named_table]),
+    % Locker is used to record references of messages.
+    Locker = ets:new(anonym, [set, public]),
+    ets:insert(SysTbl, {meeqo_locker, Locker}),
     Strategy = {one_for_all, 0, 1},
-    Router = {router, {meeqo_router, start_link, [Name]},
-              brutal_kill, worker,[meeqo_router]},
-    Inbox  = {inbox, {meeqo_inbox, start_link, []},
-              brutal_kill, worker,[]},
-    Proxy  = {proxy, {meeqo_proxy, start_link, [Port]},
-              brutal_kill, worker,[]},
-    {ok, {Strategy, [Router, Inbox, Proxy]}}.
+    Inbox  = {inbox, 
+              {meeqo_inbox, start_link, [SysTbl]},
+              temporary, brutal_kill, worker, 
+              [meeqo_inbox]},
+    Sink   = {sink, 
+              {meeqo_sink, start_link, [SysTbl, Port + 1]},
+              temporary, brutal_kill, worker,
+              dynamic},
+    Sluice = {sluice,
+              {meeqo_sluice, start_link, [SysTbl]},
+              temporary, brutal_kill, worker, 
+              [meeqo_sluice]},
+    Proxy  = {proxy,
+              {meeqo_proxy, start_link, [SysTbl, Port]},
+              temporary, brutal_kill, worker,
+              dynamic},
+    {ok, {Strategy, [Inbox, Sink, Sluice, Proxy]}}.
 

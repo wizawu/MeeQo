@@ -34,8 +34,8 @@
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
 
-init([WorkerTable]) ->
-    ets:insert(WorkerTable, {?MODULE, self()}),
+init([SysTbl]) ->
+    ets:insert(SysTbl, {?MODULE, self()}),
     % Create a table to store the minimum timestamp of all sessions.
     % The K-V is {ts(), addr()}.
     Tid = ets:new(anonym, [ordered_set]),
