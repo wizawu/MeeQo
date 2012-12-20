@@ -31,16 +31,13 @@
 
 -record(state, {ts, top}).
 
-
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
-
 
 init([]) ->
     % ts is the timestamp of the current process and top is the timestamp of
     % oldest unread message.
     {ok, #state{ts = 0, top = 1}}.
-
 
 handle_call({save, Msg, Uts}, _From, State) ->
     #state{ts = Ts, top = Top} = State,
@@ -48,7 +45,6 @@ handle_call({save, Msg, Uts}, _From, State) ->
     % Return the minimum unified timestamp to update the queueing order.
     {_, MinUts} = get(Top),
     {reply, MinUts, State#state{ts = Ts + 1}};
-
 handle_call(read, _From, State) ->
     #state{top = Top} = State,
     % Keep in mind to free the memory.
@@ -65,10 +61,8 @@ handle_call(read, _From, State) ->
         undefined ->
             {reply, nil, State}
     end;
-
 handle_call(_Request, _From, State) ->
     {noreply, State}.
-
 
 handle_info(idle, State) ->
     #state{top = Top} = State,
@@ -76,10 +70,8 @@ handle_info(idle, State) ->
         undefined -> {stop, 'IDLE', State};
         _ -> {noreply, State}
     end;
-
 handle_info(_Info, State) ->
     {noreply, State}.
-
 
 handle_cast(_Msg, State) ->
     {noreply, State}.

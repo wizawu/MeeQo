@@ -31,10 +31,8 @@
 
 -record(state, {tid, uts, unread}).
 
-
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
-
 
 init([WorkerTable]) ->
     ets:insert(WorkerTable, {?MODULE, self()}),
@@ -43,7 +41,6 @@ init([WorkerTable]) ->
     Tid = ets:new(anonym, [ordered_set]),
     process_flag(trap_exit, true),
     {ok, #state{tid = Tid, uts = 0, unread = 0}}.
-
 
 handle_call(read, From, State) ->
     #state{tid = Tid, unread = Unread} = State,
@@ -54,7 +51,6 @@ handle_call(read, From, State) ->
             [{_, Addr}] = ets:lookup(Tid, ets:first(Tid)),
             handle_call({read, Addr}, From, State)
     end;
-
 handle_call({read, Addr}, _From, State) ->
     #state{tid = Tid, unread = Unread} = State,
     Reply = case get(Addr) of
@@ -80,10 +76,8 @@ handle_call({read, Addr}, _From, State) ->
     end,
     NewUnread = (case Reply of nil -> Unread; _ -> Unread - 1 end),
     {reply, Reply, State#state{unread = NewUnread}};
-
 handle_call(_Request, _From, State) ->
     {noreply, State}.
-
 
 handle_cast({save, Addr, Msg}, State) ->
     #state{tid = Tid, uts = Uts, unread = Unread} = State,
@@ -112,10 +106,8 @@ handle_cast({save, Addr, Msg}, State) ->
         false -> ets:insert(Tid, {SesMinUts, Addr})
     end,
     {noreply, State#state{uts = Uts + 1, unread = Unread + 1}};
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
-
 
 handle_info({'EXIT', _Pid, 'IDLE'}, State) ->
     io:format("~w idles and exits.~n", [_Pid]),
@@ -127,7 +119,6 @@ handle_info({'EXIT', _Pid, Why}, State) ->
 
 handle_info(_Info, State) ->
     {noreply, State}.
-
 
 terminate(_Reason, _State) ->
     ok.
