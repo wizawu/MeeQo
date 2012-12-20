@@ -68,6 +68,7 @@ handle_call({read, Addr}, _From, State) ->
                             ets:delete(Tid, Uts),
                             Msg;
                         {Msg, Uts, NextUts} ->
+                            % Update the queueing order of Addr.
                             ets:delete(Tid, Uts),
                             ets:insert(Tid, {NextUts, Addr}),
                             Msg
@@ -112,11 +113,6 @@ handle_cast(_Msg, State) ->
 handle_info({'EXIT', _Pid, 'IDLE'}, State) ->
     io:format("~w idles and exits.~n", [_Pid]),
     {noreply, State};
-
-handle_info({'EXIT', _Pid, Why}, State) ->
-    % If exception happens in some session, inbox will stop.
-    {stop, Why, State};
-
 handle_info(_Info, State) ->
     {noreply, State}.
 

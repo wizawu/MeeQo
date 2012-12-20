@@ -53,7 +53,9 @@ handle_call(read, _From, State) ->
             NextUts = case get(Top + 1) of
                 {_, X} -> X;
                 undefined ->
-                    % In this situation, there is no more message.
+                    % In this situation, there is no more message. If no new
+                    % messages come within 30 seconds, the process will
+                    % terminate.
                     erlang:send_after(30000, self(), idle),
                     nil
             end,
