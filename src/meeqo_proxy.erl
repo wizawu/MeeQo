@@ -20,7 +20,7 @@
 %%  IN THE SOFTWARE.
 %%
 
--module(meeqo_socket).
+-module(meeqo_proxy).
 
 -export([start/0, start/1]).
 
@@ -122,3 +122,4 @@ address(Str) ->
             end;
         _ -> error
     end.
+
