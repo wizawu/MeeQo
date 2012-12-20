@@ -22,63 +22,60 @@
 
 -module(meeqo_inbox).
 
--export([start_link/0]).
+-behaviour(gen_server).
 
+-export([start_link/1]).
 
-start_link(WorkerTable) ->
-    ets:insert(WorkTable, {?MODULE, self()}),
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-record(state, {tid, uts, unread}).
+
+start_link(Args) ->
+    gen_server:start_link(?MODULE, Args, []).
+
+init([WorkerTable]) ->
+    ets:insert(WorkerTable, {?MODULE, self()}),
+    % Create a table to store the smallest timestamp of all sessions.
+    % The K-V is {ts(), addr()}.
     Tid = ets:new(anonym, [ordered_set]),
-    put(ts, 0),
-    put(tid, Tid),
     process_flag(trap_exit, true),
-    loop().
+    {ok, #state{tid=Tid, uts=0, unread=0}}.
 
-
-loop(Tid) ->
-    receive
-        {save, {Addr, Msg}} -> save(Addr, Msg);
-        {read, Pid} ->
-            case lists:keyfind(size, 1, ets:info(Tid)) of
-                {size, 0} -> Pid ! nil;
-                {size, _} ->
-                    [{_Ts, Addr}] = ets:lookup(Tid, ets:first(Tid)),
-                    read(Addr, Pid)
-            end;
-        {read, Addr, Pid} -> read(Addr, Pid);
-        {'EXIT', _Pid, 'IDLE'} -> ok
-    end,
-    loop(Tid).
-
-
-save(Addr, Msg) ->
+handle_call({save, Addr, Msg}, _From, State) ->
+    #state{tid=Tid, uts=Uts, unread=Unread} = State,
     case get(Addr) of
         undefined ->
             Pid = spawn_link(fun() -> session() end),
-            put(Addr, Pid);
-        Pid when is_pid(Pid) -> ok
+            put(Addr, Pid),
+            Pid ! {save, Msg, Uts + 1};
+        Pid when is_pid(Pid) ->
+            Pid ! {save, Msg, Uts + 1}
     end,
-    Ts = get(ts) + 1,
-    put(ts, Ts),
-    Pid ! {save, Msg, Ts},
-    receive
-        TopTs when is_integer(TopTs) ->
-            ets:insert(get(tid), {TopTs, Addr})
-    end.
+    {reply, ok, #state{tid=Tid, uts=Uts+1, unread=Unread+1}}.
 
+handle_call({read}, _From, State) ->
+    #state{tid=Tid, uts=Uts, unread=Unread} = State,
 
-read(Addr, Pid) ->
+handle_call({read, Addr}, _From, State) ->
+    #state{tid=Tid, uts=Uts, unread=Unread} = State,
     case get(Addr) of
-        undefined -> Pid ! nil;
-            SesPid ->
-                    SesPid ! {read, self()},
-                    receive
-                        nil -> Pid ! nil;
-                        {Msg, nil} ->
-                            ets:delete(Tid, Addr),
+        undefined -> Reply = nil;
+        Pid when is_pid(Pid) ->
+            
+    
 
-                        {Msg, Ts} ->
-                            ets:insert(Tid, {Addr, Ts}),
-                    end
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
 
 
 session() ->
