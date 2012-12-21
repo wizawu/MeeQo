@@ -30,7 +30,7 @@
          handle_event/3, handle_sync_event/4, handle_info/3,
          terminate/3, code_change/4]).
 
--record(state, {mll, body, msgs}).
+-record(state, {count, mll, body, msgs}).
 
 -include("meeqo_config.hrl").
 
@@ -49,11 +49,18 @@ init([Sluice, Ip, Port, ProxyPort]) ->
     put(sluice, Sluice),
     put(proxyPort, ProxyPort),
     spawn_link(fun() -> fitter(self()) end),
-    {ok, empty, #state{<<>>, <<>>, []}}.
+    {ok, empty, #state{0, <<>>, <<>>, []}}.
 
-empty(concat, State) ->
+empty({send, Msg}, State) ->
     #state{mll = MLL, body = Body} = State,
 
+ready({send, Msg}, State) ->
+
+ready(send, State) ->
+
+full({send, Msg}, State) ->
+
+full(send, State) ->
 
 state_name(_Event, State) ->
     {next_state, state_name, State}.
@@ -88,8 +95,17 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
-fitter(Pid) ->
-    T = gen_fsm:sync_send_event(Pid, concat),
-    timer:sleep(T),
-    fitter(Pid).
+concat(#state{msgs = []} = State) -> State;
+concat({N, MLL, Body, [Msg|More]} = State) ->
+    L = meeqo_msg:encode_length(byte_size(Msg)),
+    NewMLL = <<MLL/binary, L/binary>>,
+    NewBody = <<Body/binary, Msg/binary>>,
+    NewState = State#state{count=N+1, mll=NewMLL, body=NewBody, msgs=More},
+    case byte_size(NewMLL) + byte_size(NewBody) of
+        X when X >= ?PARC_MAX_MEM -> {NewState, full};
+        _ -> case (N + 1) of
+            ?PARC_MAX_MSG -> {NewState, full};
+            _ -> concat(NewState)
+        end
+    end.
 

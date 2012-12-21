@@ -44,6 +44,6 @@
 % MeeQo will pack small pieces of messages into a larger parcel automatically.
 % You can limit parcel's maximum size by specifying the following two values.
 % The defaults are 4000000 bytes and 100000.
--define(PARCEL_MAX_MEM, 4000000).
--define(PARCEL_MAX_MSG, 100000).
+-define(PARC_MAX_MEM, 4000000).
+-define(PARC_MAX_MSG, 100000).
 

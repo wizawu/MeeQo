@@ -64,7 +64,7 @@ handle_call({read, Addr}, _From, State) ->
                 true ->
                     case gen_server:call(Pid, read) of
                         nil -> nil;
-                        {Msg, Uts, nil} ->
+                        {Msg, Uts} ->
                             ets:delete(Tid, Uts),
                             Msg;
                         {Msg, Uts, NextUts} ->

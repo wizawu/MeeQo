@@ -29,7 +29,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {ts, top}).
+-record(state, {ts, top, timer}).
 
 start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
@@ -37,29 +37,33 @@ start_link(Args) ->
 init([]) ->
     % ts is the timestamp of the current process and top is the timestamp of
     % oldest unread message.
-    {ok, #state{ts = 0, top = 1}}.
+    {ok, #state{ts = 0, top = 1, timer = nil}}.
 
 handle_call({save, Msg, Uts}, _From, State) ->
-    #state{ts = Ts, top = Top} = State,
+    #state{ts = Ts, top = Top, timer = Timer}  = State,
+    case Timer of 
+        nil -> ok; 
+        TRef -> timer:cancel(TRef)
+    end,
     put(Ts + 1, {Msg, Uts}),
     % Return the minimum unified timestamp to update the queueing order.
     {_, MinUts} = get(Top),
-    {reply, MinUts, State#state{ts = Ts + 1}};
+    {reply, MinUts, State#state{ts = Ts + 1, timer = nil}};
 handle_call(read, _From, State) ->
     #state{top = Top} = State,
     % Keep in mind to free the memory.
     case erase(Top) of
         {Msg, Uts} ->
-            NextUts = case get(Top + 1) of
-                {_, X} -> X;
+            case get(Top + 1) of
+                {_, NextUts} -> 
+                    {replay, {Msg, Uts, NextUts}, State#state{top = Top+1}};
                 undefined ->
                     % In this situation, there is no more message. If no new
                     % messages come within 30 seconds, the process will
                     % terminate.
-                    erlang:send_after(30000, self(), idle),
-                    nil
-            end,
-            {reply, {Msg, Uts, NextUts}, State#state{top = Top + 1}};
+                    {ok, TRef} = erlang:send_after(30000, self(), idle),
+                    {replay, {Msg, Uts}, State#state{top = Top+1, timer = TRef}}
+            end;
         undefined ->
             {reply, nil, State}
     end;
