@@ -30,11 +30,11 @@
          handle_event/3, handle_sync_event/4, handle_info/3,
          terminate/3, code_change/4]).
 
--record(state, {count, mll, body, msgs}).
+-record(state, {count = 0, mll = <<>>, body = <<>>, msgs = []}).
 
 -include("meeqo_config.hrl").
 
--define(SOCKOPT, [{binary, {active, false}, {packet, 4},
+-define(SOCKOPT, [binary, {active, false}, {packet, 4},
                   {recbuf, ?PIPE_BUF},
                   {sndbuf, ?PIPE_BUF}
                  ]).
@@ -48,24 +48,23 @@ init([Sluice, Ip, Port, ProxyPort]) ->
     put(sock, Sock),
     put(sluice, Sluice),
     put(proxyPort, ProxyPort),
-    spawn_link(fun() -> fitter(self()) end),
-    {ok, empty, #state{0, <<>>, <<>>, []}}.
+    {ok, empty, #state{}}.
 
-empty({send, Msg}, State) ->
-    #state{mll = MLL, body = Body} = State,
+empty(timeout, State) ->
+    Sock = get(sock),
+    ok = gen_tcp:close(Sock),
+    {stop, 'IDLE', State};
+empty({send, NewMsg}, State) ->
+    gen_server:cast(get(sluice), {queue, self()}),
+    append(State, NewMsg).
 
-ready({send, Msg}, State) ->
+ready({send, NewMsg}, State) ->
+    append(State, NewMsg).
 
-ready(send, State) ->
+full({send, NewMsg}, State) ->
+    #state{msgs = Msgs} = State,
+    {next_state, full, State#state{msgs = [NewMsg|Msgs]}}.
 
-full({send, Msg}, State) ->
-
-full(send, State) ->
-
-state_name(_Event, State) ->
-    {next_state, state_name, State}.
-
-handle_event({send, Msgs}, StateName, State
 handle_event(send, _StateName, State) ->
     #state{mll = MLL, body = Body, msgs = Msgs} = State,
     ProxyPort = get(proxyPort),
@@ -73,13 +72,16 @@ handle_event(send, _StateName, State) ->
     Parc = <<ProxyPort:16, MLLBytes:32, MLL/binary, Body/binary>>,
     Sock = get(sock),
     gen_tcp:send(Sock, Parc),
-    {ok, <<"ok">>} = gen_tcp:recv(Sock, 0),
+    {ok, <<"ok", _/binary>>} = gen_tcp:recv(Sock, 0),
     Sluice = get(sluice),
     case Msgs of
-        [] -> gen_server:cast(Sluice, sent),
-        _ -> gen_server:cast(Sluice, {sent, self()})
-    end,
-    {next_state, empty, State#state{mml = <<>>, body = <<>>}};
+        [] ->
+            gen_server:cast(Sluice, sent),
+            {next_state, empty, #state{}, 30000};
+        _ ->
+            gen_server:cast(Sluice, {sent, self()}),
+            concat(#state{msgs = Msgs})
+    end;
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -95,17 +97,33 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
-concat(#state{msgs = []} = State) -> State;
-concat({N, MLL, Body, [Msg|More]} = State) ->
+concat(#state{msgs = []} = State) ->
+    {next_state, ready, State};
+concat({Count, MLL, Body, [Msg|More]}) ->
     L = meeqo_msg:encode_length(byte_size(Msg)),
     NewMLL = <<MLL/binary, L/binary>>,
     NewBody = <<Body/binary, Msg/binary>>,
-    NewState = State#state{count=N+1, mll=NewMLL, body=NewBody, msgs=More},
+    NewState = {Count+1, NewMLL, NewBody, More},
+    Full = {next_state, full, NewState},
     case byte_size(NewMLL) + byte_size(NewBody) of
-        X when X >= ?PARC_MAX_MEM -> {NewState, full};
-        _ -> case (N + 1) of
-            ?PARC_MAX_MSG -> {NewState, full};
+        X when X >= ?PARC_MAX_MEM -> Full;
+        _ -> case (Count + 1) of
+            ?PARC_MAX_MSG -> Full;
             _ -> concat(NewState)
+        end
+    end.
+
+append({Count, MLL, Body, Msgs}, NewMsg) ->
+    L = meeqo_msg:encode_length(byte_size(NewMsg)),
+    NewMLL = <<MLL/binary, L/binary>>,
+    NewBody = <<Body/binary, NewMsg/binary>>,
+    NewState = {Count+1, NewMLL, NewBody, Msgs},
+    Full = {next_state, full, NewState},
+    case byte_size(NewMLL) + byte_size(NewBody) of
+        X when X >= ?PARC_MAX_MEM -> Full;
+        _ -> case (Count + 1) of
+            ?PARC_MAX_MSG -> Full;
+            _ -> {next_state, ready, NewState}
         end
     end.
 
