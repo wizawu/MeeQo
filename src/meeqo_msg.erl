@@ -22,7 +22,7 @@
 
 -module(meeqo_msg).
 
--export([unpack/1, encode_length/1]).
+-export([unpack/1]).
 
 % unpack(binary) -> {port(), [binary, ...]}
 unpack(Parc) when is_binary(Parc) ->
@@ -60,12 +60,5 @@ decode(SoFar, <<L:8, R/binary>>) ->
         decode([K|SoFar], binary:part(R, {5, byte_size(R)-5}));
     true ->
         decode([L|SoFar], R)
-    end.
-
-encode_length(L) when is_integer(L) ->
-    if L < 255 ->
-        <<L>>;
-    true ->
-        <<255, L:40>>
     end.
 

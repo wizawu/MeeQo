@@ -43,7 +43,9 @@ start_link(Args) ->
     gen_fsm:start_link(?MODULE, Args, []).
 
 init([Sluice, Ip, Port, ProxyPort]) ->
-    % Port of meeqo_sink is always port of proxy add 1.
+    % When message is sent from one MeeQo instance(A) to another(B), it is sent
+    % from A's meeqo_pipe to B's meeqo_sink. And the port of meeqo_sink is
+    % always the port of meeqo_proxy on the same instance plus 1.
     {ok, Sock} = gen_tcp:connect(Ip, Port+1, ?SOCKOPT),
     put(sock, Sock),
     put(sluice, Sluice),
@@ -54,7 +56,10 @@ empty(timeout, State) ->
     Sock = get(sock),
     ok = gen_tcp:close(Sock),
     {stop, 'IDLE', State};
+% {send, NewMsg} is cast from meeqo_proxy. Before the pipe is allowed to send,
+% the messages will be packed into a parcel.
 empty({send, NewMsg}, State) ->
+    % Inform meeqo_sluice that the pipe has messages to send.
     gen_server:cast(get(sluice), {queue, self()}),
     append(State, NewMsg).
 
@@ -65,6 +70,7 @@ full({send, NewMsg}, State) ->
     #state{msgs = Msgs} = State,
     {next_state, full, State#state{msgs = [NewMsg|Msgs]}}.
 
+% 'send' is cast from meeqo_sluice, which means the pipe can send a parcel now.
 handle_event(send, _StateName, State) ->
     #state{mll = MLL, body = Body, msgs = Msgs} = State,
     ProxyPort = get(proxyPort),
@@ -76,6 +82,7 @@ handle_event(send, _StateName, State) ->
     Sluice = get(sluice),
     case Msgs of
         [] ->
+            % If there is no more messages, the TCP connection should be closed.
             gen_server:cast(Sluice, sent),
             {next_state, empty, #state{}, 30000};
         _ ->
@@ -97,12 +104,11 @@ terminate(_Reason, _StateName, _State) ->
 code_change(_OldVsn, StateName, State, _Extra) ->
     {ok, StateName, State}.
 
+% Pack the available messages as many as possible.
 concat(#state{msgs = []} = State) ->
     {next_state, ready, State};
 concat({Count, MLL, Body, [Msg|More]}) ->
-    L = meeqo_msg:encode_length(byte_size(Msg)),
-    NewMLL = <<MLL/binary, L/binary>>,
-    NewBody = <<Body/binary, Msg/binary>>,
+    {NewMLL, NewBody} = append_to_binary(MLL, Body, Msg),
     NewState = {Count+1, NewMLL, NewBody, More},
     Full = {next_state, full, NewState},
     case byte_size(NewMLL) + byte_size(NewBody) of
@@ -113,10 +119,9 @@ concat({Count, MLL, Body, [Msg|More]}) ->
         end
     end.
 
+% When the parcel is not full, append the new message to it.
 append({Count, MLL, Body, Msgs}, NewMsg) ->
-    L = meeqo_msg:encode_length(byte_size(NewMsg)),
-    NewMLL = <<MLL/binary, L/binary>>,
-    NewBody = <<Body/binary, NewMsg/binary>>,
+    {NewMLL, NewBody} = append_to_binary(MLL, Body, NewMsg),
     NewState = {Count+1, NewMLL, NewBody, Msgs},
     Full = {next_state, full, NewState},
     case byte_size(NewMLL) + byte_size(NewBody) of
@@ -125,5 +130,18 @@ append({Count, MLL, Body, Msgs}, NewMsg) ->
             ?PARC_MAX_MSG -> Full;
             _ -> {next_state, ready, NewState}
         end
+    end.
+
+append_to_binary(MLL, Body, Msg) ->
+    L = encode_length(byte_size(Msg)),
+    NewMLL = <<MLL/binary, L/binary>>,
+    NewBody = <<Body/binary, Msg/binary>>,
+    {NewMLL, NewBody}.
+
+encode_length(L) when is_integer(L) ->
+    if L < 255 ->
+        <<L>>;
+    true ->
+        <<255, L:40>>
     end.
 
