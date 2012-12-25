@@ -73,7 +73,7 @@ recv(Sock, InboxPid, LockerTid) ->
             {ok, {PeerIp, _}} = inet:peername(Sock),
             {PeerPort, MsgList} = meeqo_msg:unpack(Parc),
             Save = fun(Msg) -> 
-                % Use a reference to represent the message in order to prevent
+                % Use a reference to represent the message in order to avoid
                 % copying messages across processes.
                 Ref = make_ref(),
                 ets:insert(LockerTid, {Ref, Msg}),
