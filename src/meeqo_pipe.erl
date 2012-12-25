@@ -30,6 +30,8 @@
          handle_event/3, handle_sync_event/4, handle_info/3,
          terminate/3, code_change/4]).
 
+-import(lists, [reverse/1]).
+
 -record(state, {count = 0, mll = <<>>, body = <<>>, msgs = []}).
 
 -include("meeqo_config.hrl").
@@ -78,7 +80,7 @@ handle_event(send, _StateName, State) ->
     Parc = <<ProxyPort:16, MLLBytes:32, MLL/binary, Body/binary>>,
     Sock = get(sock),
     gen_tcp:send(Sock, Parc),
-    {ok, <<"ok", _/binary>>} = gen_tcp:recv(Sock, 0),
+    {ok, <<"ok">>} = gen_tcp:recv(Sock, 0),
     Sluice = get(sluice),
     case Msgs of
         [] ->
@@ -87,7 +89,9 @@ handle_event(send, _StateName, State) ->
             {next_state, empty, #state{}, 30000};
         _ ->
             gen_server:cast(Sluice, {sent, self()}),
-            concat(#state{msgs = Msgs})
+            % The lastest message is on the head, so reverse the list before
+            % packing.
+            concat(#state{msgs = reverse(Msgs)})
     end;
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
@@ -110,11 +114,12 @@ concat(#state{msgs = []} = State) ->
 concat({Count, MLL, Body, [Msg|More]}) ->
     {NewMLL, NewBody} = append_to_binary(MLL, Body, Msg),
     NewState = {Count+1, NewMLL, NewBody, More},
-    Full = {next_state, full, NewState},
     case byte_size(NewMLL) + byte_size(NewBody) of
-        X when X >= ?PARC_MAX_MEM -> Full;
+        X when X >= ?PARC_MAX_MEM ->
+            {next_state, full, NewState#state{msgs = reverse(More)}};
         _ -> case (Count + 1) of
-            ?PARC_MAX_MSG -> Full;
+            ?PARC_MAX_MSG ->
+                {next_state, full, NewState#state{msgs = reverse(More)}};
             _ -> concat(NewState)
         end
     end.
@@ -123,11 +128,11 @@ concat({Count, MLL, Body, [Msg|More]}) ->
 append({Count, MLL, Body, Msgs}, NewMsg) ->
     {NewMLL, NewBody} = append_to_binary(MLL, Body, NewMsg),
     NewState = {Count+1, NewMLL, NewBody, Msgs},
-    Full = {next_state, full, NewState},
     case byte_size(NewMLL) + byte_size(NewBody) of
-        X when X >= ?PARC_MAX_MEM -> Full;
+        X when X >= ?PARC_MAX_MEM ->
+            {next_state, full, NewState};
         _ -> case (Count + 1) of
-            ?PARC_MAX_MSG -> Full;
+            ?PARC_MAX_MSG -> {next_state, full, NewState};
             _ -> {next_state, ready, NewState}
         end
     end.
