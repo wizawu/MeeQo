@@ -96,25 +96,26 @@ listen([LoopPid, LSock]) ->
 send_read_mode(Sock) ->
 
 
-tweet_mode(Sock) ->
+tweet_mode(Sock) -> tweet_mode(Sock, <<>>).
+
+tweet_mode(Sock, Prev) ->
     inet:setopts(Sock, [{active, once}]),
     receive
         {tcp, Sock, Data} ->
+            case split_tweets(<<Prev/binary, Data/binary>>) ->
+                {[], Rest} -> tweet_mode(Sock, Rest);
+                {Msgs, Rest} ->
             
-send(Addr, Msg) ->
-    gen
 
+% Send request to meeqo_inbox to get the key to the message in meeqo_locker.
 read(Inbox, Locker) ->
-    case gen_server:call(Inbox, read) of
-        nil -> <<>>;
-        MsgRef when is_reference(MsgRef) ->
-            [{MsgRef, Msg}] = ets:lookup(Locker, MsgRef),
-            ets:delete(Locker, MsgRef),
-            Msg
-    end.
+    read_inbox(Inbox, Locker, read).
 
 read(Inbox, Locker, Addr) ->
-    case gen_server:call(Inbox, {read, Addr}) of
+    read_inbox(Inbox, Locker, {read, Addr).
+
+read_inbox(Inbox, Locker, Request) ->
+    case gen_server:call(Inbox, Request) of
         nil -> <<>>;
         MsgRef when is_reference(MsgRef) ->
             [{MsgRef, Msg}] = ets:lookup(Locker, MsgRef),
@@ -122,7 +123,45 @@ read(Inbox, Locker, Addr) ->
             Msg
     end.
 
-decode(read) ->
+% Decode single tweet into Erlang data type.
+decode_tw(Bin) ->
+    Len = bit_size(Bin) - 48,
+    case Bin of
+        <<"tweet ", X:Len/bitstring>> ->
+            % The address and message are separated by a whitespace.
+            case binary:match(X, <<" ">>) of
+                {Pos, 1} ->
+                    Addr = binary_part(X, 0, Pos),
+                    Msg = binary_part(X, Pos+1, byte_size(X)-Pos-1),
+                    {address(binary_to_list(Addr)), Msg};
+                nomatch -> error
+            end;
+        _ -> error
+    end.
+
+% Decode single read/send request into Elang data type.
+decode_sr(Bin) ->
+    Len = bit_size(Bin) - 40,
+    Len1 = Len - 8,
+    case Bin of
+        <<"read">> -> read;
+        % The ending CF is allowed, so we can use MeeQo via tools like Netcat.
+        <<"read\n">> -> read;
+        <<"read ", X:Len1/bitstring, "\n">> ->
+            {read, address(binary_to_list(X))};
+        <<"read ", X:Len/bitstring>> ->
+            {read, address(binary_to_list(X))};
+        <<"send ", X:Len/bitstring>> ->
+            % The address and message are separated by a whitespace.
+            case binary:match(X, <<" ">>) of
+                {Pos, 1} ->
+                    Addr = binary_part(X, 0, Pos),
+                    Msg = binary_part(X, Pos+1, byte_size(X)-Pos-1),
+                    {send, address(binary_to_list(Addr)), Msg};
+                nomatch -> error
+            end;
+        _ -> error
+    end.
 
 % Split the bytes in the buffer into different tweets.
 split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
@@ -133,21 +172,22 @@ split_tweets(Bin, Part, Tweets) ->
     case H of
         % 0 is null character, which is used to separate tweets.
         0 ->
-            case Rest of
+            case Part of
                 <<>> -> split_tweets(T, <<>>, Tweets);
-                _ -> split_tweets(T, <<>>, [Rest|Tweets])
+                _ -> split_tweets(T, <<>>, [Part|Tweets])
             end;
         _ ->
             split_tweets(T, <<Part/binary, H>>, Tweets)
     end.
 
 % address(Str) -> {ip(), port()} | error
-% e.g. address("192.168.1.100 8000") -> {{192,168,1,100}, 8000}
+% e.g. address("192.168.1.100:8000") -> {{192,168,1,100}, 8000}
 address(Str) ->
-    Tokens = string:tokens(Str, " "),
-    case length(Tokens) of
-        2 -> 
-            [A, B] = Tokens,
+    case string:rchr(Str, $:) of
+        0 -> error;
+        X ->
+            A = string:substr(Str, 1, X-1),
+            B = string:substr(Str, X+1),
             case inet_parse:address(A) of
                 {ok, Ip} -> 
                     case string:to_integer(B) of
