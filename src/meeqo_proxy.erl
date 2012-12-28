@@ -22,23 +22,20 @@
 
 -module(meeqo_proxy).
 
--export([start/0, start/1]).
+-export([start_link/1]).
 
--define(PORT, 6611).
--define(SOCKOPT, [binary,{buffer,16777216}]).
--define(MAXPROC, 2).
+-include("meeqo_config.hrl").
 
-start() ->
-    start(?PORT).
+-define(SOCKOPT, [binary, {active, false},
+                  {recbuf, ?RCVBUF},
+                  {sndbuf, ?SNDBUF}
+                 ]).
 
-start(Port) when is_integer(Port) ->
+start_link([SysTbl, Port]) when is_integer(Port) ->
+    ets:insert(SysTbl, {?MODULE, self()}),
+    {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
     process_flag(trap_exit, true),
-    {ok, LSock} = gen_tcp:listen(Port, [{active,false} | ?SOCKOPT]),
-    % The number of active processes
-    put(active, 0), 
-    % The pid of the process waiting for connection
-    put(listener, nil), 
-    active([LSock, self()]),
+    Args = [LSock, 
     loop(LSock).
 
 loop(LSock) ->
@@ -67,10 +64,10 @@ active(Args) ->
     put(active, get(active) + 1),
     put(listener, Pid).
 
-listen([LSock, Pid]) ->
+listen([LoopPid, LSock]) ->
     {ok, Sock} = gen_tcp:accept(LSock),
-    % Inform the main process to create another listener.
-    Pid ! {accepted},
+    % Inform the main loop to create a new listener.
+    LoopPid ! {accepted},
     % Accept the message header and verify it.
     inet:setopts(Sock, [{active,once} | ?SOCKOPT]),
     receive
@@ -96,18 +93,57 @@ listen([LSock, Pid]) ->
     end,
     gen_tcp:close(Sock).
 
-recv(Sock) ->
-    inet:setopts(Sock, [{active,once} | ?SOCKOPT]),
+send_read_mode(Sock) ->
+
+
+tweet_mode(Sock) ->
+    inet:setopts(Sock, [{active, once}]),
     receive
         {tcp, Sock, Data} ->
-            io:fwrite("~s", [Data]),
-            io:fwrite("~p~n", [inet:peername(Sock)]),
-            recv(Sock);
-        {tcp_closed, Sock} -> ok
+            
+send(Addr, Msg) ->
+    gen
+
+read(Inbox, Locker) ->
+    case gen_server:call(Inbox, read) of
+        nil -> <<>>;
+        MsgRef when is_reference(MsgRef) ->
+            [{MsgRef, Msg}] = ets:lookup(Locker, MsgRef),
+            ets:delete(Locker, MsgRef),
+            Msg
     end.
 
+read(Inbox, Locker, Addr) ->
+    case gen_server:call(Inbox, {read, Addr}) of
+        nil -> <<>>;
+        MsgRef when is_reference(MsgRef) ->
+            [{MsgRef, Msg}] = ets:lookup(Locker, MsgRef),
+            ets:delete(Locker, MsgRef),
+            Msg
+    end.
+
+decode(read) ->
+
+% Split the bytes in the buffer into different tweets.
+split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
+
+split_tweets(<<>>, Rest, Tweets) -> {lists:reverse(Tweets), Rest};
+split_tweets(Bin, Part, Tweets) ->
+    <<H, T/binary>> = Bin,
+    case H of
+        % 0 is null character, which is used to separate tweets.
+        0 ->
+            case Rest of
+                <<>> -> split_tweets(T, <<>>, Tweets);
+                _ -> split_tweets(T, <<>>, [Rest|Tweets])
+            end;
+        _ ->
+            split_tweets(T, <<Part/binary, H>>, Tweets)
+    end.
+
+% address(Str) -> {ip(), port()} | error
+% e.g. address("192.168.1.100 8000") -> {{192,168,1,100}, 8000}
 address(Str) ->
-    % The correct form should be like "192.168.1.100 8000".
     Tokens = string:tokens(Str, " "),
     case length(Tokens) of
         2 -> 
@@ -115,7 +151,8 @@ address(Str) ->
             case inet_parse:address(A) of
                 {ok, Ip} -> 
                     case string:to_integer(B) of
-                        {P, []} when P > 0, P < 65536 -> {Ip, P};
+                        {Port, []} when Port > 0, Port < 65536 -> 
+                            {Ip, Port};
                         _ -> error
                     end;
                 _ -> error
