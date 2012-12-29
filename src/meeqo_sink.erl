@@ -31,9 +31,9 @@
                   {sndbuf, ?PIPE_BUF}
                  ]).
 
-start_link([SysTbl, Port]) when is_integer(Port) ->
-    {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
-    [Inbox] = meeqo:info(SysTbl, meeqo_inbox),
+start_link([SysTbl]) ->
+    [Port, Inbox] = meeqo:info(SysTbl, [port, meeqo_inbox]),
+    {ok, LSock} = gen_tcp:listen(Port+1, ?SOCKOPT),
     process_flag(trap_exit, true),
     new_listener([LSock, Inbox]),
     loop([LSock, Inbox]).
