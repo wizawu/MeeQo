@@ -92,6 +92,8 @@ read_send_loop(Sock, SysTbl) ->
                     MsgRef = make_ref(),
                     ets:insert(meeqo_locker, {MsgRef, Msg}),
                     send(Addr, MsgRef, SysTbl),
+                    % The client should listen "ok" from meeqo_proxy in order to
+                    % separate two neighbouring send-datagrams.
                     gen_tcp:send(Sock, <<"ok">>)
             end,
             inet:setopts(Sock, [{active, once}]),
@@ -99,6 +101,7 @@ read_send_loop(Sock, SysTbl) ->
         {tcp_closed, Sock} -> ok
     end.
 
+% Receive complete data in one send-datagram.
 send_loop(Sock, SoFar) ->
     inet:setopts(Sock, [{active, once}]),
     receive
@@ -110,11 +113,18 @@ send_loop(Sock, SoFar) ->
             end
     end.
 
+% Check whether the message part in send-datagram is complete.
 check(Bin) ->
     Len = byte_size(Bin),
-    {Pos, 1} = binary:match(binary_part(Bin, 1, Len-1), <<"[">>),
+    Tail = binary_part(Bin, 1, Len-1),
+    % Position of the second "[".
+    {Pos, 1} = binary:match(Tail, <<"[">>),
+    % Bit size of the infilling between first two "[", which is also between the
+    % last two "]".
     L = (Pos - 1) * 8,
     M = (Len - L - L - 4) * 8,
+    % An extra CF at the end is allowed, so we can use MeeQo via tools like
+    % Netcat.
     N = (Len - L - L - 5) * 8,
     case Bin of
         <<"[", A:L, "[", X:M/bitstring, "]", B:L, "]">> ->
@@ -129,8 +139,8 @@ check(Bin) ->
             end;
         _ -> false
     end.
-        
-% Send request to meeqo_inbox to get the key to the message in meeqo_locker.
+
+% Send a read-request to meeqo_inbox.
 read(Inbox, Request) ->
     case gen_server:call(Inbox, Request) of
         nil -> <<>>;
@@ -140,20 +150,23 @@ read(Inbox, Request) ->
             Msg
     end.
 
+% Send a send-message-event to meeqo_pipe.
 send(Addr, Msg, SysTbl) ->
     [PipeRack] = meeqo:info(SysTbl, [meeqo_piperack]),
     Pipe = case ets:lookup(PipeRack, Addr) of
         [] ->
-            meeqo_pipe:start_link([SysTbl, Addr]);
+            Pid = meeqo_pipe:start_link([SysTbl, Addr]),
+            ets:insert(PipeRack, {Addr, Pid}),
+            Pid;
         [{Addr, Pid}] ->
             case is_process_alive(Pid) of
                 true -> Pid;
                 false ->
-                    ets:delete(PipeRack, Addr),
-                    meeqo_pipe:start_link([SysTbl, Addr])
+                    Pid = meeqo_pipe:start_link([SysTbl, Addr]),
+                    ets:insert(PipeRack, {Addr, Pid}),
+                    Pid
             end
     end,
-    ets:insert(PipeRack, {Addr, Pipe}),
     gen_fsm:send_event(Pipe, {send, Msg}).
 
 % Decode single read/send request into Elang data type.
@@ -193,6 +206,8 @@ tweet_loop(Sock, Prev, SysTbl) ->
                         send(Addr, MsgRef, SysTbl)
                     end,
                     lists:map(Fun, Msgs),
+                    % The incomplete tweet at the end will be attached to the 
+                    % next tweet-datagram.
                     tweet_loop(Sock, Rest, SysTbl)
             end;
         {tcp_closed, Sock} -> ok
