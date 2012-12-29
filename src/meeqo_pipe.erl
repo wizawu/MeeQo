@@ -44,7 +44,7 @@
 start_link(Args) ->
     gen_fsm:start_link(?MODULE, Args, []).
 
-init([SysTbl, Ip, Port]) ->
+init([SysTbl, {Ip, Port}]) ->
     % When message is sent from one MeeQo instance(A) to another(B), it is sent
     % from A's meeqo_pipe to B's meeqo_sink. And the port of meeqo_sink is
     % always the port of meeqo_proxy on the same instance plus 1.

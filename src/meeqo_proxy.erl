@@ -27,142 +27,134 @@
 -include("meeqo_config.hrl").
 
 -define(SOCKOPT, [binary, {active, false},
-                  {recbuf, ?RCVBUF},
-                  {sndbuf, ?SNDBUF}
+                  {recbuf, ?PROXY_RCVBUF},
+                  {sndbuf, ?PROXY_SNDBUF}
                  ]).
 
-start_link([SysTbl, Port]) when is_integer(Port) ->
-    ets:insert(SysTbl, {?MODULE, self()}),
+start_link([SysTbl]) ->
+    [Port] = ets:lookup(SysTbl, [port]),
     {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
+    ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
-    Args = [LSock, 
-    loop(LSock).
+    new_listener([LSock, SysTbl]),
+    loop([LSock, SysTbl]).
 
-loop(LSock) ->
-    receive
-        {accepted} ->
-            case get(active) of
-                % If the number of active processes reaches the limit, new
-                % process won't be created temporarily.
-                N when N == ?MAXPROC -> put(listener, nil);
-                _ -> active([LSock, self()])
-            end;
-        {'EXIT', Pid, _Why} ->
-            put(active, get(active) - 1),
-            case get(listener) of
-                nil -> active([LSock, self()]);
-                % DO NOT forget that the listener would also fail.
-                Pid -> active([LSock, self()]);
-                _ -> pass
-            end;
-        _ -> pass
-    end,
-    loop(LSock).
-    
-active(Args) ->
-    Pid = spawn_link(fun() -> listen(Args) end),
-    put(active, get(active) + 1),
+new_listener([LSock, SysTbl]) ->
+    Pid = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
     put(listener, Pid).
 
-listen([LoopPid, LSock]) ->
-    {ok, Sock} = gen_tcp:accept(LSock),
-    % Inform the main loop to create a new listener.
-    LoopPid ! {accepted},
-    % Accept the message header and verify it.
-    inet:setopts(Sock, [{active,once} | ?SOCKOPT]),
+loop(Args) ->
     receive
-        {tcp, Sock, Data} ->
-            case binary_to_list(Data) of
-                % ASCII 10 is '\n'
-                "send " ++ Dest ->
-                    case address(string:strip(Dest, both, 10)) of
-                        error -> pass;
-                        Addr -> 
-                            io:fwrite("send ~p~n", [Addr]),
-                            recv(Sock)
-                    end;
-                "read " ++ From ->
-                    case address(string:strip(From, both, 10)) of
-                        error -> pass;
-                        Addr -> io:fwrite("read ~p~n", [Addr])
-                    end;
-                "read" -> io:fwrite("read~n",[]);
-                "read\n" -> io:fwrite("readn~n",[]);
-                _ -> pass
+        accepted -> new_listener(Args);
+        {'EXIT', Pid, _Why} ->
+            case get(listener) of
+                Pid ->
+                    % If listener fails, warn and new another.
+                    Format = "meeqo_proxy listener ~w failed.",
+                    error_logger:error_msg(Format, [Pid]),
+                    timer:sleep(200),
+                    new_listener(Args);
+                _ -> ok
             end
     end,
-    gen_tcp:close(Sock).
+    loop(Args).
 
-send_read_mode(Sock) ->
+listen(Loop, LSock, SysTbl) ->
+    {ok, Sock} = gen_tcp:accept(LSock),
+    % Inform the main loop to create a new listener.
+    Loop ! accepted,
+    % Accept the first message and identify the datagram type.
+    {ok, Data} = gen_tcp:recv(Sock, 0),
+    case binary_part(Data, 0, 5) of
+        <<"tweet">> -> tweet_loop(Sock, Data, SysTbl);
+        _ ->
+            self() ! {tcp, Sock, Data},
+            read_send_loop(Sock, SysTbl)
+    end.
 
-
-tweet_mode(Sock) -> tweet_mode(Sock, <<>>).
-
-tweet_mode(Sock, Prev) ->
-    inet:setopts(Sock, [{active, once}]),
+read_send_loop(Sock, SysTbl) ->
     receive
         {tcp, Sock, Data} ->
-            case split_tweets(<<Prev/binary, Data/binary>>) ->
-                {[], Rest} -> tweet_mode(Sock, Rest);
-                {Msgs, Rest} ->
-                    
+            case decode_sr(Data) of
+                read ->
+                    [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
+                    Msg = read(Inbox, read),
+                    gen_tcp:send(Sock, Msg);
+                {read, Addr} ->
+                    [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
+                    Msg = read(Inbox, {read, Addr}),
+                    gen_tcp:send(Sock, Msg);
+                {send, Addr, Bin} ->
+                    Msg = case check(Bin) of
+                        {true, X} -> X;
+                        false -> send_loop(Sock, Bin)
+                    end,
+                    MsgRef = make_ref(),
+                    ets:insert(meeqo_locker, {MsgRef, Msg}),
+                    send(Addr, MsgRef, SysTbl),
+                    gen_tcp:send(Sock, <<"ok">>)
+            end,
+            inet:setopts(Sock, [{active, once}]),
+            read_send_loop(Sock, SysTbl);
+        {tcp_closed, Sock} -> ok
+    end.
 
-read_send(Inbox, Locker, PipeTbl, Msgs) ->
-    case decode_sr(Msgs) of
-        read -> read(Inbox, Locker);
-        {read, Addr} -> read(Inbox, Locker, Addr};
-        {send, Addr, Msgs} ->
-                    
-            
+send_loop(Sock, SoFar) ->
+    inet:setopts(Sock, [{active, once}]),
+    receive
+        {tcp, Sock, New} ->
+            Bin = <<SoFar/binary, New/binary>>,
+            case check(Bin) of
+                {true, Msg} -> Msg;
+                false -> send_loop(Sock, Bin)
+            end
+    end.
 
+check(Bin) ->
+    Len = byte_size(Bin),
+    {Pos, 1} = binary:match(binary_part(Bin, 1, Len-1), <<"[">>),
+    L = (Pos - 1) * 8,
+    M = (Len - L - L - 4) * 8,
+    N = (Len - L - L - 5) * 8,
+    case Bin of
+        <<"[", A:L, "[", X:M/bitstring, "]", B:L, "]">> ->
+            case A == B of
+                true -> {true, X};
+                false -> false
+            end;
+        <<"[", A:L, "[", X:N/bitstring, "]", B:L, "]\n">> ->
+            case A == B of
+                true -> {true, X};
+                false -> false
+            end;
+        _ -> false
+    end.
+        
 % Send request to meeqo_inbox to get the key to the message in meeqo_locker.
-read(Inbox, Locker) ->
-    read_inbox(Inbox, Locker, read).
-
-read(Inbox, Locker, Addr) ->
-    read_inbox(Inbox, Locker, {read, Addr).
-
-read_inbox(Inbox, Locker, Request) ->
+read(Inbox, Request) ->
     case gen_server:call(Inbox, Request) of
         nil -> <<>>;
         MsgRef when is_reference(MsgRef) ->
-            [{MsgRef, Msg}] = ets:lookup(Locker, MsgRef),
-            ets:delete(Locker, MsgRef),
+            [{MsgRef, Msg}] = ets:lookup(meeqo_locker, MsgRef),
+            ets:delete(meeqo_locker, MsgRef),
             Msg
     end.
 
-% Split the bytes in the buffer into different tweets.
-split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
-
-split_tweets(<<>>, Rest, Tweets) -> {lists:reverse(Tweets), Rest};
-split_tweets(Bin, Part, Tweets) ->
-    <<H, T/binary>> = Bin,
-    case H of
-        % 0 is null character, which is used to separate tweets.
-        0 ->
-            case Part of
-                <<>> -> split_tweets(T, <<>>, Tweets);
-                _ -> split_tweets(T, <<>>, [Part|Tweets])
-            end;
-        _ ->
-            split_tweets(T, <<Part/binary, H>>, Tweets)
-    end.
-
-% Decode single tweet into Erlang data type.
-decode_tw(Bin) ->
-    Len = bit_size(Bin) - 48,
-    case Bin of
-        <<"tweet ", X:Len/bitstring>> ->
-            % The address and message are separated by a whitespace.
-            case binary:match(X, <<" ">>) of
-                {Pos, 1} ->
-                    Addr = binary_part(X, 0, Pos),
-                    Msg = binary_part(X, Pos+1, byte_size(X)-Pos-1),
-                    {address(binary_to_list(Addr)), Msg};
-                nomatch -> error
-            end;
-        _ -> error
-    end.
+send(Addr, Msg, SysTbl) ->
+    [PipeRack] = meeqo:info(SysTbl, [meeqo_piperack]),
+    Pipe = case ets:lookup(PipeRack, Addr) of
+        [] ->
+            meeqo_pipe:start_link([SysTbl, Addr]);
+        [{Addr, Pid}] ->
+            case is_process_alive(Pid) of
+                true -> Pid;
+                false ->
+                    ets:delete(PipeRack, Addr),
+                    meeqo_pipe:start_link([SysTbl, Addr])
+            end
+    end,
+    ets:insert(PipeRack, {Addr, Pipe}),
+    gen_fsm:send_event(Pipe, {send, Msg}).
 
 % Decode single read/send request into Elang data type.
 decode_sr(Bin) ->
@@ -188,6 +180,57 @@ decode_sr(Bin) ->
         _ -> error
     end.
 
+tweet_loop(Sock, Prev, SysTbl) ->
+    inet:setopts(Sock, [{active, once}]),
+    receive
+        {tcp, Sock, Data} ->
+            case split_tweets(<<Prev/binary, Data/binary>>) of
+                {[], Rest} -> tweet_loop(Sock, Rest, SysTbl);
+                {Msgs, Rest} ->
+                    Fun = fun({Addr, Msg}) ->
+                        MsgRef = make_ref(),
+                        ets:insert(meeqo_locker, {MsgRef, Msg}),
+                        send(Addr, MsgRef, SysTbl)
+                    end,
+                    lists:map(Fun, Msgs),
+                    tweet_loop(Sock, Rest, SysTbl)
+            end;
+        {tcp_closed, Sock} -> ok
+    end.
+
+% Split the bytes in the buffer into different tweets.
+split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
+
+split_tweets(<<>>, Rest, Tweets) -> {lists:reverse(Tweets), Rest};
+split_tweets(Bin, Part, Tweets) ->
+    <<H, T/binary>> = Bin,
+    case H of
+        % 0 is null character, which is used to separate tweets.
+        0 ->
+            case Part of
+                <<>> -> split_tweets(T, <<>>, Tweets);
+                _ -> split_tweets(T, <<>>, [decode_tw(Part)|Tweets])
+            end;
+        _ ->
+            split_tweets(T, <<Part/binary, H>>, Tweets)
+    end.
+
+% Decode single tweet into Erlang data type.
+decode_tw(Bin) ->
+    Len = bit_size(Bin) - 48,
+    case Bin of
+        <<"tweet ", X:Len/bitstring>> ->
+            % The address and message are separated by a whitespace.
+            case binary:match(X, <<" ">>) of
+                {Pos, 1} ->
+                    Addr = binary_part(X, 0, Pos),
+                    Msg = binary_part(X, Pos+1, byte_size(X)-Pos-1),
+                    {address(binary_to_list(Addr)), Msg};
+                nomatch -> error
+            end;
+        _ -> error
+    end.
+
 % address(Str) -> {ip(), port()} | error
 % e.g. address("192.168.1.100:8000") -> {{192,168,1,100}, 8000}
 address(Str) ->
@@ -204,7 +247,6 @@ address(Str) ->
                         _ -> error
                     end;
                 _ -> error
-            end;
-        _ -> error
+            end
     end.
 

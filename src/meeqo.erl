@@ -39,23 +39,27 @@ start_link(Port) when is_integer(Port) ->
     end. 
 
 init([Port]) ->
-    % Create a table to record important process ids and table ids.
+    % Create a table to record important infomation about the MeeQo instance,
+    % such as process IDs and table IDs.
     SysTbl = list_to_atom("meeqo_" ++ integer_to_list(Port)),
-    ets:new(SysTbl, [set, public, named_table]),
+    ets:new(SysTbl, [named_table, set, public]),
     ets:insert(SysTbl, {port, Port}),
     % meeqo_locker is used to record references of messages. MeeQo instances in
-    % the same Erlang VM will share the same meeqo_locker.
+    % the same Erlang VM will share one meeqo_locker.
     case lists:member(meeqo_locker, ets:all()) of
         true -> ok;
         false -> ets:new(meeqo_locker, [named_table, set, public])
     end,
+    % meeqo_piperack is used to record pids of meeqo_pipes.
+    PipeRack = ets:new(anonym, [set, public]),
+    ets:insert(SysTbl, {meeqo_piperack, PipeRack}),
     Strategy = {one_for_all, 0, 1},
     Inbox  = {inbox, 
               {meeqo_inbox, start_link, [SysTbl]},
               temporary, brutal_kill, worker, 
               [meeqo_inbox]},
     Sink   = {sink, 
-              {meeqo_sink, start_link, [SysTbl, Port + 1]},
+              {meeqo_sink, start_link, [SysTbl]},
               temporary, brutal_kill, worker,
               dynamic},
     Sluice = {sluice,
@@ -63,11 +67,12 @@ init([Port]) ->
               temporary, brutal_kill, worker, 
               [meeqo_sluice]},
     Proxy  = {proxy,
-              {meeqo_proxy, start_link, [SysTbl, Port]},
+              {meeqo_proxy, start_link, [SysTbl]},
               temporary, brutal_kill, worker,
               dynamic},
     {ok, {Strategy, [Inbox, Sink, Sluice, Proxy]}}.
 
+% Use info/2 to make it easier to retrieve instance's information.
 info(SysTbl, Atoms) when is_list(Atoms) ->
     info(SysTbl, Atoms, []).
 

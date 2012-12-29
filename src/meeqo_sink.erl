@@ -32,14 +32,16 @@
                  ]).
 
 start_link([SysTbl]) ->
-    [Port, Inbox] = meeqo:info(SysTbl, [port, meeqo_inbox]),
+    [Port] = meeqo:info(SysTbl, [port]),
+    % The port of meeqo_sink is the port of meeqo_proxy plus one.
     {ok, LSock} = gen_tcp:listen(Port+1, ?SOCKOPT),
+    ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
-    new_listener([LSock, Inbox]),
-    loop([LSock, Inbox]).
+    new_listener([LSock, SysTbl]),
+    loop([LSock, SysTbl]).
 
-new_listener(Args) ->
-    Pid = spawn_link(fun() -> listen([self()|Args]) end),
+new_listener([LSock, SysTbl]) ->
+    Pid = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
     put(listener, Pid).
 
 loop(Args) ->
@@ -49,7 +51,8 @@ loop(Args) ->
             case get(listener) of
                 Pid -> 
                     % If listener fails, warn and new another.
-                    error_logger:error_msg("Sink listener ~w failed.~n", [Pid]),
+                    Format = "meeqo_sink listener ~w failed.",
+                    error_logger:error_msg(Format, [Pid]),
                     timer:sleep(200),
                     new_listener(Args);
                 _ -> ok
@@ -57,10 +60,11 @@ loop(Args) ->
     end,
     loop(Args).
     
-listen([Loop, LSock, Inbox]) ->
+listen(Loop, LSock, SysTbl) ->
     {ok, Sock} = gen_tcp:accept(LSock),
     % Inform the main loop to create a new listener.
     Loop ! accepted,
+    [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
     recv(Sock, Inbox).
 
 recv(Sock, Inbox) ->

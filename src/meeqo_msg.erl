@@ -56,8 +56,8 @@ decode(SoFar, <<L:8, R/binary>>) ->
     % Otherwise, use 255 followed by 5 bytes which represent the length.
     % Therefore the maximum message size is 1 TiB.
     if L == 255 ->
-        <<K:40>> = binary:part(R, {0, 5}),
-        decode([K|SoFar], binary:part(R, {5, byte_size(R)-5}));
+        <<K:40>> = binary_part(R, 0, 5),
+        decode([K|SoFar], binary_part(R, 5, byte_size(R)-5));
     true ->
         decode([L|SoFar], R)
     end.
