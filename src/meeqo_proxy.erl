@@ -105,6 +105,14 @@ tweet_mode(Sock, Prev) ->
             case split_tweets(<<Prev/binary, Data/binary>>) ->
                 {[], Rest} -> tweet_mode(Sock, Rest);
                 {Msgs, Rest} ->
+                    
+
+read_send(Inbox, Locker, PipeTbl, Msgs) ->
+    case decode_sr(Msgs) of
+        read -> read(Inbox, Locker);
+        {read, Addr} -> read(Inbox, Locker, Addr};
+        {send, Addr, Msgs} ->
+                    
             
 
 % Send request to meeqo_inbox to get the key to the message in meeqo_locker.
@@ -121,6 +129,23 @@ read_inbox(Inbox, Locker, Request) ->
             [{MsgRef, Msg}] = ets:lookup(Locker, MsgRef),
             ets:delete(Locker, MsgRef),
             Msg
+    end.
+
+% Split the bytes in the buffer into different tweets.
+split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
+
+split_tweets(<<>>, Rest, Tweets) -> {lists:reverse(Tweets), Rest};
+split_tweets(Bin, Part, Tweets) ->
+    <<H, T/binary>> = Bin,
+    case H of
+        % 0 is null character, which is used to separate tweets.
+        0 ->
+            case Part of
+                <<>> -> split_tweets(T, <<>>, Tweets);
+                _ -> split_tweets(T, <<>>, [Part|Tweets])
+            end;
+        _ ->
+            split_tweets(T, <<Part/binary, H>>, Tweets)
     end.
 
 % Decode single tweet into Erlang data type.
@@ -161,23 +186,6 @@ decode_sr(Bin) ->
                 nomatch -> error
             end;
         _ -> error
-    end.
-
-% Split the bytes in the buffer into different tweets.
-split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
-
-split_tweets(<<>>, Rest, Tweets) -> {lists:reverse(Tweets), Rest};
-split_tweets(Bin, Part, Tweets) ->
-    <<H, T/binary>> = Bin,
-    case H of
-        % 0 is null character, which is used to separate tweets.
-        0 ->
-            case Part of
-                <<>> -> split_tweets(T, <<>>, Tweets);
-                _ -> split_tweets(T, <<>>, [Part|Tweets])
-            end;
-        _ ->
-            split_tweets(T, <<Part/binary, H>>, Tweets)
     end.
 
 % address(Str) -> {ip(), port()} | error

@@ -26,7 +26,7 @@
 
 -export([start_link/0, start_link/1]).
 
--export([init/1]).
+-export([init/1, info/2]).
 
 -include("meeqo_config.hrl").
 
@@ -43,9 +43,12 @@ init([Port]) ->
     SysTbl = list_to_atom("meeqo_" ++ integer_to_list(Port)),
     ets:new(SysTbl, [set, public, named_table]),
     ets:insert(SysTbl, {port, Port}),
-    % Locker is used to record references of messages.
-    Locker = ets:new(anonym, [set, public]),
-    ets:insert(SysTbl, {meeqo_locker, Locker}),
+    % meeqo_locker is used to record references of messages. MeeQo instances in
+    % the same Erlang VM will share the same meeqo_locker.
+    case lists:member(meeqo_locker, ets:all()) of
+        true -> ok;
+        false -> ets:new(meeqo_locker, [named_table, set, public])
+    end,
     Strategy = {one_for_all, 0, 1},
     Inbox  = {inbox, 
               {meeqo_inbox, start_link, [SysTbl]},
@@ -65,3 +68,11 @@ init([Port]) ->
               dynamic},
     {ok, {Strategy, [Inbox, Sink, Sluice, Proxy]}}.
 
+info(SysTbl, Atoms) when is_list(Atoms) ->
+    info(SysTbl, Atoms, []).
+
+info(_SysTbl, [], Result) -> lists:reverse(Result);
+info(SysTbl, [H|T], Result) ->
+    [{H, R}] = ets:lookup(SysTbl, H),
+    info(SysTbl, T, [R|Result]).
+    

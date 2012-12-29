@@ -44,17 +44,15 @@
 start_link(Args) ->
     gen_fsm:start_link(?MODULE, Args, []).
 
-init([SysTbl, Ip, Port, ProxyPort]) ->
+init([SysTbl, Ip, Port]) ->
     % When message is sent from one MeeQo instance(A) to another(B), it is sent
     % from A's meeqo_pipe to B's meeqo_sink. And the port of meeqo_sink is
     % always the port of meeqo_proxy on the same instance plus 1.
     {ok, Sock} = gen_tcp:connect(Ip, Port+1, ?SOCKOPT),
+    [ProxyPort, Sluice] = meeqo:info(SysTbl, [port, meeqo_sluice]),
     put(sock, Sock),
     put(proxy_port, ProxyPort),
-    [{_, Sluice}] = ets:lookup(SysTbl, meeqo_sluice),
     put(sluice, Sluice),
-    [{_, Locker}] = ets:lookup(SysTbl, meeqo_locker),
-    put(locker, Locker),
     {ok, empty, #state{}}.
 
 empty(timeout, State) ->
@@ -141,7 +139,7 @@ append({Count, MLL, Body, Msgs}, NewMsg) ->
     end.
 
 append_to_binary(MLL, Body, MsgRef) ->
-    [{_, Msg}] = ets:lookup(get(locker), MsgRef),
+    [{_, Msg}] = ets:lookup(meeqo_locker, MsgRef),
     L = encode_length(byte_size(Msg)),
     NewMLL = <<MLL/binary, L/binary>>,
     NewBody = <<Body/binary, Msg/binary>>,

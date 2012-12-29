@@ -33,15 +33,13 @@
 
 start_link([SysTbl, Port]) when is_integer(Port) ->
     {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
-    [{_, InboxPid}] = ets:lookup(SysTbl, meeqo_inbox),
-    [{_, LockerTid}] = ets:lookup(SysTbl, meeqo_locker),
+    [Inbox] = meeqo:info(SysTbl, meeqo_inbox),
     process_flag(trap_exit, true),
-    Args = [LSock, InboxPid, LockerTid],
-    new_listener(Args),
-    loop(Args).
+    new_listener([LSock, Inbox]),
+    loop([LSock, Inbox]).
 
 new_listener(Args) ->
-    Pid = spawn_link(fun() -> listen([self() | Args]) end),
+    Pid = spawn_link(fun() -> listen([self()|Args]) end),
     put(listener, Pid).
 
 loop(Args) ->
@@ -59,13 +57,13 @@ loop(Args) ->
     end,
     loop(Args).
     
-listen([LoopPid, LSock, InboxPid, LockerTid]) ->
+listen([Loop, LSock, Inbox]) ->
     {ok, Sock} = gen_tcp:accept(LSock),
     % Inform the main loop to create a new listener.
-    LoopPid ! accepted,
-    recv(Sock, InboxPid, LockerTid).
+    Loop ! accepted,
+    recv(Sock, Inbox).
 
-recv(Sock, InboxPid, LockerTid) ->
+recv(Sock, Inbox) ->
     inet:setopts(Sock, [{active, once}]),
     receive
         {tcp, Sock, Parc} ->
@@ -76,11 +74,11 @@ recv(Sock, InboxPid, LockerTid) ->
                 % Use a reference to represent the message in order to avoid
                 % copying messages across processes.
                 Ref = make_ref(),
-                ets:insert(LockerTid, {Ref, Msg}),
-                gen_server:cast(InboxPid, {save, {PeerIp, PeerPort}, Ref})
+                ets:insert(meeqo_locker, {Ref, Msg}),
+                gen_server:cast(Inbox, {save, {PeerIp, PeerPort}, Ref})
             end,
             lists:map(Save, MsgList),
-            recv(Sock, InboxPid, LockerTid);
+            recv(Sock, Inbox);
         {tcp_closed, Sock} -> ok
     end.
 
