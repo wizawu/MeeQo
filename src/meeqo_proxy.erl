@@ -47,7 +47,7 @@ init([SysTbl]) ->
     ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
     Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
-    {ok, {Listen, LSock, SysTbl}}.
+    {ok, #state{listen = Listen, lsock = LSock, systbl = SysTbl}}.
 
 handle_cast(accepted, State) ->
     {_, LSock, SysTbl} = State,

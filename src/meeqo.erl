@@ -77,7 +77,7 @@ info(SysTbl, Atoms) when is_list(Atoms) ->
     info(SysTbl, Atoms, []).
 
 info(_SysTbl, [], Result) -> lists:reverse(Result);
-info(SysTbl, [H|T], Result) ->
+info(SysTbl, [H|T], SoFar) ->
     [{H, R}] = ets:lookup(SysTbl, H),
-    info(SysTbl, T, [R|Result]).
+    info(SysTbl, T, [R|SoFar]).
     
