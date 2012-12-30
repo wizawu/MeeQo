@@ -50,7 +50,7 @@ init([SysTbl]) ->
     {ok, #state{listen = Listen, lsock = LSock, systbl = SysTbl}}.
 
 handle_cast(accepted, State) ->
-    {_, LSock, SysTbl} = State,
+    #state{lsock = LSock, systbl = SysTbl} = State,
     Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
     {noreply, State#state{listen = Listen}};
 handle_cast(_Msg, State) ->
