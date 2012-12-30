@@ -24,7 +24,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, check/1]).
+-export([start_link/1, check/1, split_tweets/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -57,7 +57,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({'EXIT', Pid, _Why}, State) ->
-    {_, LSock, SysTbl} = State,
+    #state{lsock = LSock, systbl = SysTbl} = State,
     NewState = case State#state.listen of
         Pid ->
             % If listener fails, warn and new another.
@@ -243,7 +243,7 @@ split_tweets(Bin) -> split_tweets(Bin, <<>>, []).
 
 split_tweets(<<>>, Rest, Tweets) -> {lists:reverse(Tweets), Rest};
 split_tweets(Bin, Part, Tweets) ->
-    <<H, T/binary>> = Bin,
+    <<H:8/integer, T/binary>> = Bin,
     case H of
         % 0 is null character, which is used to separate tweets.
         0 ->
@@ -256,7 +256,11 @@ split_tweets(Bin, Part, Tweets) ->
     end.
 
 % Decode single tweet into Erlang data type.
-decode_tw(Bin) ->
+decode_tw(Bin0) ->
+    Bin = case binary:first(Bin0) of
+        10 -> binary_part(Bin0, 1, byte_size(Bin0)-1);
+        _ -> Bin0
+    end,
     Len = bit_size(Bin) - 48,
     case Bin of
         <<"tweet ", X:Len/bitstring>> ->
