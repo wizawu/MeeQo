@@ -42,7 +42,7 @@ start_link(Args) ->
     gen_server:start_link(?MODULE, [Args], []).
 
 init([SysTbl]) ->
-    [Port] = ets:lookup(SysTbl, [port]),
+    [Port] = meeqo:info(SysTbl, [port]),
     {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
     ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
