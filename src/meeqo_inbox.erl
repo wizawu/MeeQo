@@ -32,7 +32,7 @@
 -record(state, {tid, uts, unread}).
 
 start_link(Args) ->
-    gen_server:start_link(?MODULE, Args, []).
+    gen_server:start_link(?MODULE, [Args], []).
 
 init([SysTbl]) ->
     ets:insert(SysTbl, {?MODULE, self()}),

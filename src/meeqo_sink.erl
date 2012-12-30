@@ -22,7 +22,14 @@
 
 -module(meeqo_sink).
 
+-behaviour(gen_server).
+
 -export([start_link/1]).
+
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-record(state, {listen, lsock, systbl}).
 
 -include("meeqo_config.hrl").
 
@@ -31,39 +38,54 @@
                   {sndbuf, ?PIPE_BUF}
                  ]).
 
-start_link([SysTbl]) ->
+start_link(Args) ->
+    gen_server:start_link(?MODULE, [Args], []).
+
+init([SysTbl]) ->
     [Port] = meeqo:info(SysTbl, [port]),
     % The port of meeqo_sink is the port of meeqo_proxy plus one.
     {ok, LSock} = gen_tcp:listen(Port+1, ?SOCKOPT),
     ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
-    new_listener([LSock, SysTbl]),
-    loop([LSock, SysTbl]).
+    Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
+    {ok, {Listen, LSock, SysTbl}}.
 
-new_listener([LSock, SysTbl]) ->
-    Pid = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
-    put(listener, Pid).
+handle_cast(accepted, State) ->
+    {_, LSock, SysTbl} = State,
+    Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
+    {noreply, State#state{listen = Listen}};
+handle_cast(_Msg, State) ->
+    {noreply, State}.
 
-loop(Args) ->
-    receive
-        accepted -> new_listener(Args);
-        {'EXIT', Pid, _Why} ->
-            case get(listener) of
-                Pid -> 
-                    % If listener fails, warn and new another.
-                    Format = "meeqo_sink listener ~w failed.",
-                    error_logger:error_msg(Format, [Pid]),
-                    timer:sleep(200),
-                    new_listener(Args);
-                _ -> ok
-            end
+handle_info({'EXIT', Pid, _Why}, State) ->
+    {_, LSock, SysTbl} = State,
+    NewState = case State#state.listen of
+        Pid ->
+            % If listener fails, warn and new another.
+            Format = "meeqo_sink listener ~w failed.",
+            error_logger:error_msg(Format, [Pid]),
+            timer:sleep(1000),
+            Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
+            State#state{listen = Listen};
+        _ -> State
     end,
-    loop(Args).
-    
-listen(Loop, LSock, SysTbl) ->
+    {noreply, NewState};
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+handle_call(_Request, _From, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+listen(Svr, LSock, SysTbl) ->
     {ok, Sock} = gen_tcp:accept(LSock),
-    % Inform the main loop to create a new listener.
-    Loop ! accepted,
+    % Inform the server to create a new listener.
+    gen_server:cast(Svr, accepted),
     [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
     recv(Sock, Inbox).
 

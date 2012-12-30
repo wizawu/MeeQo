@@ -22,7 +22,14 @@
 
 -module(meeqo_proxy).
 
+-behaviour(gen_server).
+
 -export([start_link/1]).
+
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-record(state, {listen, lsock, systbl}).
 
 -include("meeqo_config.hrl").
 
@@ -31,38 +38,56 @@
                   {sndbuf, ?PROXY_SNDBUF}
                  ]).
 
-start_link([SysTbl]) ->
+start_link(Args) ->
+    gen_server:start_link(?MODULE, [Args], []).
+
+init([SysTbl]) ->
     [Port] = ets:lookup(SysTbl, [port]),
     {ok, LSock} = gen_tcp:listen(Port, ?SOCKOPT),
     ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
-    new_listener([LSock, SysTbl]),
-    loop([LSock, SysTbl]).
+    Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
+    {ok, {Listen, LSock, SysTbl}}.
 
-new_listener([LSock, SysTbl]) ->
-    Pid = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
-    put(listener, Pid).
+handle_cast(accepted, State) ->
+    {_, LSock, SysTbl} = State,
+    Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
+    {noreply, State#state{listen = Listen}};
+handle_cast(_Msg, State) ->
+    {noreply, State}.
 
-loop(Args) ->
-    receive
-        accepted -> new_listener(Args);
-        {'EXIT', Pid, _Why} ->
-            case get(listener) of
-                Pid ->
-                    % If listener fails, warn and new another.
-                    Format = "meeqo_proxy listener ~w failed.",
-                    error_logger:error_msg(Format, [Pid]),
-                    timer:sleep(200),
-                    new_listener(Args);
-                _ -> ok
-            end
+handle_info({'EXIT', Pid, _Why}, State) ->
+    {_, LSock, SysTbl} = State,
+    NewState = case State#state.listen of
+        Pid ->
+            % If listener fails, warn and new another.
+            Format = "meeqo_proxy listener ~w failed.",
+            error_logger:error_msg(Format, [Pid]),
+            timer:sleep(1000),
+            Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
+            State#state{listen = Listen};
+        _ -> State
     end,
-    loop(Args).
+    {noreply, NewState};
+handle_info(_Info, State) ->
+    {noreply, State}.
 
-listen(Loop, LSock, SysTbl) ->
+handle_call(_Request, _From, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%%-----------------------------------------------------------------------------
+%%  Internal Functions
+%%-----------------------------------------------------------------------------
+listen(Svr, LSock, SysTbl) ->
     {ok, Sock} = gen_tcp:accept(LSock),
-    % Inform the main loop to create a new listener.
-    Loop ! accepted,
+    % Inform the server to create a new listener.
+    gen_server:cast(Svr, accepted),
     % Accept the first message and identify the datagram type.
     {ok, Data} = gen_tcp:recv(Sock, 0),
     case binary_part(Data, 0, 5) of
