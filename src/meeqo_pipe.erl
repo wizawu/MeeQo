@@ -58,6 +58,7 @@ init([SysTbl, {Ip, Port}]) ->
 empty(timeout, State) ->
     Sock = get(sock),
     ok = gen_tcp:close(Sock),
+    io:format("meeqo_pipe ~w idles and exits.~n", [self()]),
     {stop, 'IDLE', State};
 % {send, NewMsg} is cast from meeqo_proxy. Before the pipe is allowed to send,
 % the messages will be packed into a parcel.
@@ -112,9 +113,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % Pack the available messages as many as possible.
 concat(#state{msgs = []} = State) ->
     {next_state, ready, State};
-concat({Count, MLL, Body, [Msg|More]}) ->
+concat(#state{count=Count, mll=MLL, body=Body, msgs=[Msg|More]}) ->
     {NewMLL, NewBody} = append_to_binary(MLL, Body, Msg),
-    NewState = {Count+1, NewMLL, NewBody, More},
+    NewState = #state{count=Count+1, mll=NewMLL, body=NewBody, msgs=More},
     case byte_size(NewMLL) + byte_size(NewBody) of
         X when X >= ?PARC_MAX_MEM ->
             {next_state, full, NewState#state{msgs = reverse(More)}};
@@ -126,9 +127,9 @@ concat({Count, MLL, Body, [Msg|More]}) ->
     end.
 
 % When the parcel is not full, append the new message to it.
-append({Count, MLL, Body, Msgs}, NewMsg) ->
+append(#state{count=Count, mll=MLL, body=Body, msgs=Msgs}, NewMsg) ->
     {NewMLL, NewBody} = append_to_binary(MLL, Body, NewMsg),
-    NewState = {Count+1, NewMLL, NewBody, Msgs},
+    NewState = #state{count=Count+1, mll=NewMLL, body=NewBody, msgs=Msgs},
     case byte_size(NewMLL) + byte_size(NewBody) of
         X when X >= ?PARC_MAX_MEM ->
             {next_state, full, NewState};
