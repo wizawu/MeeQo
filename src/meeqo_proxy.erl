@@ -24,7 +24,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1]).
+-export([start_link/1, check/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -143,14 +143,14 @@ check(Bin) ->
     Len = byte_size(Bin),
     Tail = binary_part(Bin, 1, Len-1),
     % Position of the second "[".
-    {Pos, 1} = binary:match(Tail, <<"[">>),
+    Pos = element(1, binary:match(Tail, <<"[">>)) + 1,
     % Bit size of the infilling between first two "[", which is also between the
     % last two "]".
     L = (Pos - 1) * 8,
-    M = (Len - L - L - 4) * 8,
+    M = (Len - 4) * 8 - L - L,
     % An extra CF at the end is allowed, so we can use MeeQo via tools like
     % Netcat.
-    N = (Len - L - L - 5) * 8,
+    N = (Len - 5) * 8 - L - L,
     case Bin of
         <<"[", A:L, "[", X:M/bitstring, "]", B:L, "]">> ->
             case A == B of
