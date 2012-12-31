@@ -43,7 +43,7 @@ handle_call({save, Msg, Uts}, _From, State) ->
     #state{ts = Ts, top = Top, timer = Timer}  = State,
     case Timer of 
         nil -> ok; 
-        TRef -> timer:cancel(TRef)
+        TRef -> erlang:cancel_timer(TRef)
     end,
     put(Ts + 1, {Msg, Uts}),
     % Return the minimum unified timestamp to update the queueing order.
@@ -61,7 +61,7 @@ handle_call(read, _From, State) ->
                     % In this situation, there is no more message. If no new
                     % messages come within 30 seconds, the process will
                     % terminate.
-                    {ok, TRef} = erlang:send_after(30000, self(), idle),
+                    TRef = erlang:send_after(30000, self(), 'IDLE'),
                     {reply, {Msg, Uts}, State#state{top = Top+1, timer = TRef}}
             end;
         undefined ->
@@ -70,7 +70,7 @@ handle_call(read, _From, State) ->
 handle_call(_Request, _From, State) ->
     {noreply, State}.
 
-handle_info(idle, State) ->
+handle_info('IDLE', State) ->
     #state{top = Top} = State,
     case get(Top) of
         undefined -> {stop, 'IDLE', State};

@@ -104,11 +104,17 @@ read_send_loop(Sock, SysTbl) ->
                 read ->
                     [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
                     Msg = read(Inbox, read),
-                    gen_tcp:send(Sock, Msg);
+                    case get(cf) of 
+                        true -> gen_tcp:send(Sock, [Msg, <<"\n">>]);
+                        _ -> gen_tcp:send(Sock, Msg)
+                    end;
                 {read, Addr} ->
                     [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
                     Msg = read(Inbox, {read, Addr}),
-                    gen_tcp:send(Sock, Msg);
+                    case get(cf) of 
+                        true -> gen_tcp:send(Sock, [Msg, <<"\n">>]);
+                        _ -> gen_tcp:send(Sock, Msg)
+                    end;
                 {send, Addr, Bin} when is_tuple(Addr) ->
                     Msg = case check(Bin) of
                         {true, X} -> X;
@@ -117,9 +123,12 @@ read_send_loop(Sock, SysTbl) ->
                     MsgRef = make_ref(),
                     ets:insert(meeqo_locker, {MsgRef, Msg}),
                     send(Addr, MsgRef, SysTbl),
-                    % The client should listen "ok\n" from meeqo_proxy in order to
+                    % The client should listen "ok" from meeqo_proxy in order to
                     % separate two neighbouring send-datagrams.
-                    gen_tcp:send(Sock, <<"ok~n">>)
+                    case get(cf) of
+                        true -> gen_tcp:send(Sock, <<"ok\n">>);
+                        _ -> gen_tcp:send(Sock, <<"ok">>)
+                    end
             end,
             inet:setopts(Sock, [{active, once}]),
             read_send_loop(Sock, SysTbl);
@@ -154,12 +163,16 @@ check(Bin) ->
     case Bin of
         <<"[", A:L, "[", X:M/bitstring, "]", B:L, "]">> ->
             case A == B of
-                true -> {true, X};
+                true -> 
+                    put(cf, false),
+                    {true, X};
                 false -> false
             end;
         <<"[", A:L, "[", X:N/bitstring, "]", B:L, "]\n">> ->
             case A == B of
-                true -> {true, X};
+                true -> 
+                    put(cf, true),
+                    {true, X};
                 false -> false
             end;
         _ -> false
@@ -199,12 +212,18 @@ decode_sr(Bin) ->
     Len = bit_size(Bin) - 40,
     Len1 = Len - 8,
     case Bin of
-        <<"read">> -> read;
+        <<"read">> ->
+            put(cf, false),
+            read;
         % The ending CF is allowed, so we can use MeeQo via tools like Netcat.
-        <<"read\n">> -> read;
+        <<"read\n">> ->
+            put(cf, true),
+            read;
         <<"read ", X:Len1/bitstring, "\n">> ->
+            put(cf, true),
             {read, address(binary_to_list(X))};
         <<"read ", X:Len/bitstring>> ->
+            put(cf, false),
             {read, address(binary_to_list(X))};
         <<"send ", X:Len/bitstring>> ->
             % The address and message are separated by a whitespace.
