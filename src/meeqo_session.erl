@@ -56,13 +56,13 @@ handle_call(read, _From, State) ->
         {Msg, Uts} ->
             case get(Top + 1) of
                 {_, NextUts} -> 
-                    {replay, {Msg, Uts, NextUts}, State#state{top = Top+1}};
+                    {reply, {Msg, Uts, NextUts}, State#state{top = Top+1}};
                 undefined ->
                     % In this situation, there is no more message. If no new
                     % messages come within 30 seconds, the process will
                     % terminate.
                     {ok, TRef} = erlang:send_after(30000, self(), idle),
-                    {replay, {Msg, Uts}, State#state{top = Top+1, timer = TRef}}
+                    {reply, {Msg, Uts}, State#state{top = Top+1, timer = TRef}}
             end;
         undefined ->
             {reply, nil, State}
