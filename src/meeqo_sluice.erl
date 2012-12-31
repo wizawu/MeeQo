@@ -45,7 +45,7 @@ init([SysTbl]) ->
 handle_cast({queue, Pid}, State) ->
     #state{tid = Tid, ts = Ts, act = N} = State,
     if N < ?MAX_ACT_PIPES ->
-        gen_fsm:send_event(Pid, send),
+        gen_fsm:send_all_state_event(Pid, send),
         {noreply, State#state{act = N + 1}};
     true ->
         ets:insert(Tid, {Ts + 1, Pid}),
@@ -68,7 +68,7 @@ handle_cast(sent, State) ->
         Key ->
             [{_, Pid}] = ets:lookup(Tid, Key),
             ets:delete(Tid, Key),
-            gen_fsm:send_event(Pid, send),
+            gen_fsm:send_all_state_event(Pid, send),
             {noreply, State}
     end;
 handle_cast(_Msg, State) ->
