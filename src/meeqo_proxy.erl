@@ -108,6 +108,9 @@ read_send_loop(Sock, SysTbl) ->
                 read ->
                     [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
                     Msg = read(Inbox, read),
+                    % If get(cf) is true, Data must be <<"read\n">>. So the
+                    % request may come from some CLI. A "\n" should be appended
+                    % by the result.
                     case get(cf) of 
                         true -> gen_tcp:send(Sock, [Msg, <<"\n">>]);
                         _ -> gen_tcp:send(Sock, Msg)
@@ -197,6 +200,7 @@ send(Addr, Msg, SysTbl) ->
     [PipeRack] = meeqo:info(SysTbl, [meeqo_piperack]),
     Pipe = case ets:lookup(PipeRack, Addr) of
         [] ->
+            % Create a meeqo_pipe for each address.
             {ok, Pid} = meeqo_pipe:start([SysTbl, Addr]),
             ets:insert(PipeRack, {Addr, Pid}),
             Pid;

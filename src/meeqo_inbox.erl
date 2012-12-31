@@ -40,6 +40,9 @@ init([SysTbl]) ->
     % The K-V is {ts(), addr()}.
     Tid = ets:new(anonym, [ordered_set]),
     process_flag(trap_exit, true),
+    % #state.uts is the unified timestamp, which increases one when a new
+    % message comes.
+    % #state.unread is the total number of unread messages.
     {ok, #state{tid = Tid, uts = 0, unread = 0}}.
 
 handle_call(read, From, State) ->
@@ -47,7 +50,7 @@ handle_call(read, From, State) ->
     case Unread of
         0 -> {reply, nil, State};
         N when N > 0 ->
-            % Keep in mind the lookup will return a list.
+            % Keep in mind that lookup will return a list.
             [{_, Addr}] = ets:lookup(Tid, ets:first(Tid)),
             handle_call({read, Addr}, From, State)
     end;

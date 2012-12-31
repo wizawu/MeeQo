@@ -66,6 +66,7 @@ handle_cast(sent, State) ->
         '$end_of_table' ->
             {noreply, State#state{act = N - 1}};
         Key ->
+            % Active a pipe with unsent messages.
             [{_, Pid}] = ets:lookup(Tid, Key),
             ets:delete(Tid, Key),
             gen_fsm:send_all_state_event(Pid, send),
