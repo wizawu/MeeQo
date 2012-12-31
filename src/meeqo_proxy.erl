@@ -93,10 +93,11 @@ listen(Svr, LSock, SysTbl) ->
     ok = gen_server:call(Svr, accepted),
     % Accept the first message and identify the datagram type.
     {ok, Data} = gen_tcp:recv(Sock, 0),
+    self() ! {tcp, Sock, Data},
     case binary_part(Data, 0, 5) of
-        <<"tweet">> -> tweet_loop(Sock, Data, SysTbl);
+        <<"tweet">> -> 
+            tweet_loop(Sock, <<>>, SysTbl);
         _ ->
-            self() ! {tcp, Sock, Data},
             read_send_loop(Sock, SysTbl)
     end.
 
@@ -199,9 +200,9 @@ send(Addr, Msg, SysTbl) ->
             {ok, Pid} = meeqo_pipe:start([SysTbl, Addr]),
             ets:insert(PipeRack, {Addr, Pid}),
             Pid;
-        [{Addr, Pid}] ->
-            case is_process_alive(Pid) of
-                true -> Pid;
+        [{Addr, OldPid}] ->
+            case is_process_alive(OldPid) of
+                true -> OldPid;
                 false ->
                     {ok, Pid} = meeqo_pipe:start([SysTbl, Addr]),
                     ets:insert(PipeRack, {Addr, Pid}),
@@ -241,7 +242,6 @@ decode_sr(Bin) ->
     end.
 
 tweet_loop(Sock, Prev, SysTbl) ->
-    inet:setopts(Sock, [{active, once}]),
     receive
         {tcp, Sock, Data} ->
             case split_tweets(<<Prev/binary, Data/binary>>) of
@@ -255,6 +255,7 @@ tweet_loop(Sock, Prev, SysTbl) ->
                     lists:map(Fun, Msgs),
                     % The incomplete tweet at the end will be attached to the 
                     % next tweet-datagram.
+                    inet:setopts(Sock, [{active, once}]),
                     tweet_loop(Sock, Rest, SysTbl)
             end;
         {tcp_closed, Sock} -> ok
