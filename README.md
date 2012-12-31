@@ -12,9 +12,9 @@ Erlang R15B01 (erts-5.9.1) [source] [64-bit] [smp:4:4] [async-threads:0] [hipe] 
 
 Eshell V5.9.1  (abort with ^G)
 1> meeqo:start_link(6611).
-{ok,<0.43.0>}
+{ok,'<0.43.0>'}
 2> meeqo:start_link(6613).
-{ok,<0.51.0>}
+{ok,'<0.51.0>'}
 3></pre></code>
 
 The format of read-send protocol is as follows. Any character can be inserted between first two "[" and last two "]" only if the message body can be distinguished, e.g. `[@#[Hello]]MeeQo]@#]`, of which the message body is `Hello]]MeeQo`. This is a trick of **Lua** syntax. What is more, message can be sent in multiple continuous TCP packets. (Refer the second message.) After all the data in a single message is sent to MeeQo, a reply "ok" will be return.
