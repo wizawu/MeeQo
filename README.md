@@ -21,6 +21,8 @@ The format of read-send protocol is as follows. Any character can be inserted be
 <pre><code>read                            - Read the first message and delete it from MeeQo.
 read IP:port                    - Read the first message from IP:port and delete it from MeeQo.
 send IP:port [...[message]...]  - Send a message to MeeQo at IP:port.
+
+PLEASE DO NOT ENTER REDUNDANT WHITESPACES.
 </code></pre>
 
 <pre><code>~$ ncat 192.168.3.139 6611
