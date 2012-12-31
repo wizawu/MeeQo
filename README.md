@@ -17,11 +17,11 @@ Eshell V5.9.1  (abort with ^G)
 3></pre></code>
 
 The format of read-send protocol is as follows. Any character can be inserted between first two "[" and last two "]" only if the message body can be distinguished, e.g. `[@#[Hello]]MeeQo]@#]`, of which the message body is `Hello]]MeeQo`. This is a trick of **Lua** syntax. What is more, message can be sent in multiple continuous TCP packets. (Refer the second message.) After all the data in a single message is sent to MeeQo, a reply "ok" will be return.
-\[
-read                            - Read the first message and delete it from MeeQo.
+
+<pre><code>read                            - Read the first message and delete it from MeeQo.
 read IP:port                    - Read the first message from IP:port and delete it from MeeQo.
 send IP:port [...[message]...]  - Send a message to MeeQo at IP:port.
-\]
+</code></pre>
 
 <pre><code>~$ ncat 192.168.3.139 6611
 send 192.168.3.139:6613 [`[The First Message]`]
