@@ -196,14 +196,14 @@ send(Addr, Msg, SysTbl) ->
     [PipeRack] = meeqo:info(SysTbl, [meeqo_piperack]),
     Pipe = case ets:lookup(PipeRack, Addr) of
         [] ->
-            {ok, Pid} = meeqo_pipe:start_link([SysTbl, Addr]),
+            {ok, Pid} = meeqo_pipe:start([SysTbl, Addr]),
             ets:insert(PipeRack, {Addr, Pid}),
             Pid;
         [{Addr, Pid}] ->
             case is_process_alive(Pid) of
                 true -> Pid;
                 false ->
-                    {ok, Pid} = meeqo_pipe:start_link([SysTbl, Addr]),
+                    {ok, Pid} = meeqo_pipe:start([SysTbl, Addr]),
                     ets:insert(PipeRack, {Addr, Pid}),
                     Pid
             end

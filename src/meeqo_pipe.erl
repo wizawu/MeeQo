@@ -24,7 +24,7 @@
 
 -behaviour(gen_fsm).
 
--export([start_link/1]).
+-export([start/1]).
 
 -export([init/1, empty/2, ready/2, full/2,
          handle_event/3, handle_sync_event/4, handle_info/3,
@@ -41,8 +41,8 @@
                   {sndbuf, ?PIPE_BUF}
                  ]).
 
-start_link(Args) ->
-    gen_fsm:start_link(?MODULE, Args, []).
+start(Args) ->
+    gen_fsm:start(?MODULE, Args, []).
 
 init([SysTbl, {Ip, Port}]) ->
     % When message is sent from one MeeQo instance(A) to another(B), it is sent
