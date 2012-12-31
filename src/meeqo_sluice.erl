@@ -58,7 +58,7 @@ handle_cast({sent, Pid}, State) ->
     Key = ets:first(Tid),
     [{_, ActPid}] = ets:lookup(Tid, Key),
     ets:delete(Tid, Key),
-    gen_fsm:send_event(ActPid, send),
+    gen_fsm:send_all_state_event(ActPid, send),
     {noreply, State#state{ts = Ts + 1}};
 handle_cast(sent, State) ->
     #state{tid = Tid, act = N} = State,

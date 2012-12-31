@@ -113,29 +113,29 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 % Pack the available messages as many as possible.
 concat(#state{msgs = []} = State) ->
     {next_state, ready, State};
-concat(#state{count=Count, mll=MLL, body=Body, msgs=[Msg|More]}) ->
+concat({state, Count, MLL, Body, [Msg|More]}) ->
     {NewMLL, NewBody} = append_to_binary(MLL, Body, Msg),
-    NewState = #state{count=Count+1, mll=NewMLL, body=NewBody, msgs=More},
+    State = {state, Count+1, NewMLL, NewBody, More},
     case byte_size(NewMLL) + byte_size(NewBody) of
         X when X >= ?PARC_MAX_MEM ->
-            {next_state, full, NewState#state{msgs = reverse(More)}};
+            {next_state, full, State#state{msgs = reverse(More)}};
         _ -> case (Count + 1) of
             ?PARC_MAX_MSG ->
-                {next_state, full, NewState#state{msgs = reverse(More)}};
-            _ -> concat(NewState)
+                {next_state, full, State#state{msgs = reverse(More)}};
+            _ -> concat(State)
         end
     end.
 
 % When the parcel is not full, append the new message to it.
-append(#state{count=Count, mll=MLL, body=Body, msgs=Msgs}, NewMsg) ->
+append({state, Count, MLL, Body, Msgs}, NewMsg) ->
     {NewMLL, NewBody} = append_to_binary(MLL, Body, NewMsg),
-    NewState = #state{count=Count+1, mll=NewMLL, body=NewBody, msgs=Msgs},
+    State = {state, Count+1, NewMLL, NewBody, Msgs},
     case byte_size(NewMLL) + byte_size(NewBody) of
         X when X >= ?PARC_MAX_MEM ->
-            {next_state, full, NewState};
+            {next_state, full, State};
         _ -> case (Count + 1) of
-            ?PARC_MAX_MSG -> {next_state, full, NewState};
-            _ -> {next_state, ready, NewState}
+            ?PARC_MAX_MSG -> {next_state, full, State};
+            _ -> {next_state, ready, State}
         end
     end.
 

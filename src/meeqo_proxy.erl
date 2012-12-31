@@ -24,7 +24,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1, check/1, split_tweets/1]).
+-export([start_link/1]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -47,17 +47,17 @@ init([SysTbl]) ->
     ets:insert(SysTbl, {?MODULE, self()}),
     process_flag(trap_exit, true),
     Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
-    {ok, #state{listen = Listen, lsock = LSock, systbl = SysTbl}}.
+    {ok, {state, Listen, LSock, SysTbl}}.
 
 handle_cast(accepted, State) ->
-    #state{lsock = LSock, systbl = SysTbl} = State,
+    {state, _, LSock, SysTbl} = State,
     Listen = spawn_link(fun() -> listen(self(), LSock, SysTbl) end),
     {noreply, State#state{listen = Listen}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({'EXIT', Pid, _Why}, State) ->
-    #state{lsock = LSock, systbl = SysTbl} = State,
+    {state, _, LSock, SysTbl} = State,
     NewState = case State#state.listen of
         Pid ->
             % If listener fails, warn and new another.
@@ -109,7 +109,7 @@ read_send_loop(Sock, SysTbl) ->
                     [Inbox] = meeqo:info(SysTbl, [meeqo_inbox]),
                     Msg = read(Inbox, {read, Addr}),
                     gen_tcp:send(Sock, Msg);
-                {send, Addr, Bin} ->
+                {send, Addr, Bin} when is_tuple(Addr) ->
                     Msg = case check(Bin) of
                         {true, X} -> X;
                         false -> send_loop(Sock, Bin)
@@ -180,14 +180,14 @@ send(Addr, Msg, SysTbl) ->
     [PipeRack] = meeqo:info(SysTbl, [meeqo_piperack]),
     Pipe = case ets:lookup(PipeRack, Addr) of
         [] ->
-            Pid = meeqo_pipe:start_link([SysTbl, Addr]),
+            {ok, Pid} = meeqo_pipe:start_link([SysTbl, Addr]),
             ets:insert(PipeRack, {Addr, Pid}),
             Pid;
         [{Addr, Pid}] ->
             case is_process_alive(Pid) of
                 true -> Pid;
                 false ->
-                    Pid = meeqo_pipe:start_link([SysTbl, Addr]),
+                    {ok, Pid} = meeqo_pipe:start_link([SysTbl, Addr]),
                     ets:insert(PipeRack, {Addr, Pid}),
                     Pid
             end
