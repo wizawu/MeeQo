@@ -8,8 +8,7 @@ Start two MeeQo instances on port 6611 and 6613 respectively. The port number MU
 
 <pre><code>/path/to/meeqo/ebin$ erlc ../src/*erl
 /path/to/meeqo/ebin$ erl
-Erlang R15B01 (erts-5.9.1) [source] [64-bit] [smp:4:4] [async-threads:0] [hipe] [kernel-poll:false]
-
+Erlang R15B01 (erts-5.9.1) [source] [64-bit] [smp:4:4] [async-threads:0] [hipe] [kernel-poll:false]<br />
 Eshell V5.9.1  (abort with ^G)
 1> meeqo:start_link(6611).
 {ok,`<0.43.0>`}
