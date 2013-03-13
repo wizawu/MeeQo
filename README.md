@@ -6,8 +6,8 @@ MeeQo is an open source message queue. I got most ideas about it from **ZeroMQ**
 *****
 Start two MeeQo instances on port 6611 and 6613 respectively. The port number MUST be **odd**.
 
-<pre><code>/path/to/meeqo/ebin$ erlc ../src/*erl
-/path/to/meeqo/ebin$ erl
+<pre><code>/path/to/meeqo$ make
+/path/to/meeqo$ erl -pa ebin
 Erlang R15B01 (erts-5.9.1) [source] [64-bit] [smp:4:4] [async-threads:0] [hipe] [kernel-poll:false]<br />
 Eshell V5.9.1  (abort with ^G)
 1> meeqo:start_link(6611).
