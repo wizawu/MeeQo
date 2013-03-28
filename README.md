@@ -72,8 +72,10 @@ few lines of code in Java or Python, etc.
 
 *****
 ### Benchmark  
-<pre><code>  100,000  | 8 bytes | 64 bytes
------------|---------|----------
- Beanstalk |  22.32s |  18.89s
------------|---------|----------
-   MeeQo   |  13.31s |  17.49s  </code></pre>
+<pre><code>    100,000   | 8 bytes | 64 bytes
+--------------|---------|----------
+   Beanstalk  |  22.32s |  18.89s
+--------------|---------|----------
+ MeeQo(tweet) |  13.31s |  17.49s
+--------------|---------|----------
+  MeeQo(send) |  20.37s |  22.35s  </code></pre>

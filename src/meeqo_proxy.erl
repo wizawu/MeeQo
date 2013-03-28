@@ -94,8 +94,8 @@ listen(Svr, LSock, SysTbl) ->
     % Accept the first message and identify the datagram type.
     {ok, Data} = gen_tcp:recv(Sock, 0),
     self() ! {tcp, Sock, Data},
-    case binary_part(Data, 0, 5) of
-        <<"tweet">> -> 
+    case binary_part(Data, 0, 4) of
+        <<"twee">> -> 
             tweet_loop(Sock, <<>>, SysTbl);
         _ ->
             read_send_loop(Sock, SysTbl)
