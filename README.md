@@ -67,7 +67,8 @@ read
 <i>"^@" is null character.</i>
 ^C</code></pre>
 
-This is how to use MeeQo via **Ncat**. You can use most of the programming languages to implement such a client.
+This is how to use MeeQo via **Ncat**. You can implement such a client with a
+few lines of code in Java or Python, etc.
 
 *****
 ### Benchmark  
@@ -75,4 +76,4 @@ This is how to use MeeQo via **Ncat**. You can use most of the programming langu
 ------------|---------|----------
  Beanstalkd |  22.32s |  18.89s
 ------------|---------|----------
-    MeeQo   |</code></pre>
+    MeeQo   |  13.31s |  17.49s  </code></pre>

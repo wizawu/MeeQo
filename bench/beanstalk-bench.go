@@ -1,7 +1,7 @@
 package main
 
 import (
-    "./beanstalk"
+    "./beanstalk"    /* git://github.com/kr/beanstalk.git */
     "time"
     "fmt"
 )
