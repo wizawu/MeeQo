@@ -14,7 +14,7 @@ Eshell V5.9.1  (abort with ^G)
 {ok,&lt;0.43.0&gt;}
 2> meeqo:start_link(6613).
 {ok,&lt;0.51.0&gt;}
-3></pre></code>
+3></code></pre>
 
 The format of read-send protocol is as follows. Any character can be inserted between first two "[" and last two "]" only if the message body can be distinguished, e.g. <code>[@#[Hello]]MeeQo]@#]</code>, of which the message body is <code>Hello]]MeeQo</code>. This is a trick of <strong>Lua</strong> syntax. What is more, message can be sent in multiple continuous TCP packets. (Refer the second message.) After all the data in a single message is sent to MeeQo, a reply "ok" will be return.
 
@@ -26,27 +26,27 @@ PLEASE DO NOT ENTER REDUNDANT WHITESPACES.
 </code></pre>
 
 <pre><code>~$ ncat 192.168.3.139 6611
-send 192.168.3.139:6613 [`[The First Message]`]
-ok
-send 192.168.3.139:6613 [`[The First Line of The Second Message`<br />`
-The Second Line of the Second Message]`]
-ok
-^C</pre></code>
+send 192.168.3.139:6613 [[The First Message]]
+<i>ok</i>
+send 192.168.3.139:6613 [[The First Line of The Second Message
+The Second Line of the Second Message]]
+<i>ok</i>
+^C</code></pre>
 
 <pre><code>~$ ncat 192.168.3.139 6613
 read
-The First Message
+<i>The First Message</i>
 read 192.168.3.139:6611
-The First Line of The Second Message
-The Second Line of the Second Message
-send 192.168.3.139:6611 [`[I got two messages from you]`]
-ok
-^C</pre></code>
+<i>The First Line of The Second Message
+The Second Line of the Second Message</i>
+send 192.168.3.139:6611 [[I got two messages from you]]
+<i>ok</i>
+^C</code></pre>
 
 <pre><code>~$ ncat 192.168.3.139 6611
 read
-I got two messages from you
-^C</pre></code>
+<i>I got two messages from you</i>
+^C</code></pre>
 
 Different from the former protocol, we can tweet multiple messages in one TCP packet, or more exactly, in one TCP connection. But each message MUST end with a **null character**('\0'), which means the message body cannot contain it. You can input it in CLI by pressing `<C-2>`.
 
@@ -54,18 +54,25 @@ Different from the former protocol, we can tweet multiple messages in one TCP pa
 tweet 192.168.3.139:6613 Message One^@
 tweet 192.168.3.139:6613 Message Two^@tweet 192.168.3.139:6613 Message Three^@
 tweet 192.168.3.139:6613 "^@" is null character.^@
-^C</pre></code>
+^C</code></pre>
 
 <pre><code>~$ ncat 192.168.3.139 6613
 read
-Message One
+<i>Message One</i>
 read 192.168.3.139:6611
-Message Two
+<i>Message Two</i>
 read
-Message Three
+<i>Message Three</i>
 read
-"^@" is null character.
-^C</pre></code>
+<i>"^@" is null character.</i>
+^C</code></pre>
 
-***
 This is how to use MeeQo via **Ncat**. You can use most of the programming languages to implement such a client.
+
+*****
+### Benchmark  
+<pre><code>   100,000  | 8 bytes | 64 bytes
+------------|---------|----------
+ Beanstalkd |  22.32s |  18.89s
+------------|---------|----------
+    MeeQo   |</code></pre>
