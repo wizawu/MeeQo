@@ -87,4 +87,4 @@ few lines of code in Java or Python, etc.
 --------------|---------|----------
  MeeQo(tweet) |  98.74s |  93.18s
 --------------|---------|----------
-  MeeQo(send) | 203.02s | 211.17s</code></pre>
+  MeeQo(send) | 203.02s | 201.17s</code></pre>
