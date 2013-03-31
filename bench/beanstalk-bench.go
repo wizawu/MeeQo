@@ -9,7 +9,8 @@ import (
 var msg [64]byte
 const (
     JOBS int = 100000
-    MSGL int = 8
+    MSGL int = 64
+    HOST string = "192.168.3.171"
 )
 
 func fill(x int) {
@@ -21,7 +22,7 @@ func fill(x int) {
 }
 
 func main() {
-    c, err := beanstalk.Dial("tcp", "127.0.0.1:5511")
+    c, err := beanstalk.Dial("tcp", HOST + ":5511")
     if err != nil {
         panic(err)
     }
@@ -38,7 +39,7 @@ func main() {
 }
 
 func fetch(chn chan int) {
-    c, err := beanstalk.Dial("tcp", "127.0.0.1:5511")
+    c, err := beanstalk.Dial("tcp", HOST + ":5511")
     if err != nil {
         panic(err)
     }

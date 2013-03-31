@@ -12,6 +12,7 @@ var symb [4]byte = [4]byte{0, '\t', '\t'}
 const (
     JOBS int = 100000
     MSGL int = 64
+    HOST string = "192.168.3.171"
 )
 
 func fill(x int) {
@@ -33,9 +34,9 @@ func swrite(conn net.Conn, bytes []byte) {
     _, err := conn.Write(bytes)
     check(err)
 }
-/* Send-Read protocol
+/* Send-Read protocol 
 func main() {
-    conn, err := net.Dial("tcp", "127.0.0.1:6611")
+    conn, err := net.Dial("tcp", HOST + ":6611")
     defer conn.Close()
     check(err)
 
@@ -44,7 +45,7 @@ func main() {
 
     for i := 0; i < JOBS; i++ {
         fill(MSGL)
-        swrite(conn, []byte("send 127.0.0.1:6613 [["))
+        swrite(conn, []byte("send " + HOST + ":6613 [["))
         swrite(conn, []byte(strconv.Itoa(i+1)))
         swrite(conn, symb[1:3])
         swrite(conn, msg[:MSGL])
@@ -63,7 +64,7 @@ func main() {
 */
 /* Tweet protocol */
 func main() {
-    conn, err := net.Dial("tcp", "127.0.0.1:6611")
+    conn, err := net.Dial("tcp", HOST + ":6611")
     defer conn.Close()
     check(err)
 
@@ -72,7 +73,7 @@ func main() {
 
     for i := 0; i < JOBS; i++ {
         fill(MSGL)
-        swrite(conn, []byte("tweet 127.0.0.1:6613 "))
+        swrite(conn, []byte("tweet " + HOST + ":6613 "))
         swrite(conn, []byte(strconv.Itoa(i+1)))
         swrite(conn, symb[1:3])
         swrite(conn, msg[:MSGL])
@@ -84,13 +85,13 @@ func main() {
 
 func fetch(chn chan int) {
     time.Sleep(time.Millisecond * 200)
-    conn, err := net.Dial("tcp", "127.0.0.1:6613")
+    conn, err := net.Dial("tcp", HOST + ":6613")
     defer conn.Close()
     check(err)
 
     var buf [80]byte
     for i := 0; i < JOBS; {
-        _, err = conn.Write([]byte("read 127.0.0.1:6611"))
+        _, err = conn.Write([]byte("read " + HOST + ":6611"))
         check(err)
         n, err := conn.Read(buf[:])
         check(err)
