@@ -5,14 +5,13 @@ import (
     "time"
     "fmt"
     "strconv"
+    "flag"
 )
 
 var msg [64]byte
 var symb [4]byte = [4]byte{0, '\t', '\t'}
-const (
-    JOBS int = 100000
-    MSGL int = 8
-)
+const JOBS int = 100000
+var MSGL int
 
 func fill(x int) {
     t := time.Now().UnixNano()
@@ -35,6 +34,11 @@ func swrite(conn net.Conn, bytes []byte) {
 }
 
 func main() {
+    flag.Parse()
+    MSGL, err := strconv.Atoi(flag.Arg(0))
+    check(err)
+    fmt.Printf("Msg length: %d bytes\n", MSGL)
+
     conn, err := net.Dial("tcp", "127.0.0.1:6611")
     defer conn.Close()
     check(err)
