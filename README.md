@@ -79,10 +79,12 @@ few lines of code in Java or Python, etc.
 --------------|---------|----------
  MeeQo(tweet) |  13.31s |  17.49s
 --------------|---------|----------
-  MeeQo(send) |  20.37s |  22.35s  </code></pre>
+  MeeQo(send) |  20.37s |  22.35s</code></pre>
 #### 1Gbit/s Ethernet
 <pre><code>    100,000   | 8 bytes | 64 bytes
 --------------|---------|----------
    Beanstalk  | 123.47s | 122.69s
 --------------|---------|----------
  MeeQo(tweet) |  98.74s |  93.18s
+--------------|---------|----------
+  MeeQo(send) | 217.53s | 214.26s</code></pre>
