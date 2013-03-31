@@ -127,15 +127,15 @@ read_send_loop(Sock, SysTbl) ->
                         {true, X} -> X;
                         false -> send_loop(Sock, Bin)
                     end,
-                    MsgRef = make_ref(),
-                    ets:insert(meeqo_locker, {MsgRef, Msg}),
-                    send(Addr, MsgRef, SysTbl),
                     % The client should listen "ok" from meeqo_proxy in order to
                     % separate two neighbouring send-datagrams.
                     case get(cf) of
                         true -> gen_tcp:send(Sock, <<"ok\n">>);
                         _ -> gen_tcp:send(Sock, <<"ok">>)
-                    end
+                    end,
+                    MsgRef = make_ref(),
+                    ets:insert(meeqo_locker, {MsgRef, Msg}),
+                    send(Addr, MsgRef, SysTbl)
             end,
             inet:setopts(Sock, [{active, once}]),
             read_send_loop(Sock, SysTbl);
