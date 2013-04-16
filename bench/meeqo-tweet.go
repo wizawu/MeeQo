@@ -45,7 +45,7 @@ func main() {
 
     for i := 0; i < JOBS; i++ {
         fill(MSGL)
-        swrite(conn, []byte("tweet 192.168.3.179:6611 "))
+        swrite(conn, []byte("tweet 192.168.3.139:6613 "))
         swrite(conn, []byte(strconv.Itoa(i+1)))
         swrite(conn, symb[1:3])
         swrite(conn, msg[:MSGL])
